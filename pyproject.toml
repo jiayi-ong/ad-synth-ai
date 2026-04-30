@@ -35,6 +35,13 @@ dev = [
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+addopts = "--log-file=logs/pytest.log --log-file-level=DEBUG"
+markers = [
+  "unit: fast, fully mocked — no external services",
+  "module: mocked external services, real in-memory DB",
+  "system: end-to-end with real Gemini LLM (requires GOOGLE_API_KEY)",
+  "connection: live API connectivity checks (auto-skipped if key is absent)",
+]
 
 [build-system]
 requires = ["hatchling"]
