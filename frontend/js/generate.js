@@ -352,33 +352,6 @@ async function refreshEvalPanel(adId) {
   } catch {}
 }
 
-function renderEvalPanel(evalData, brandScore) {
-  const score = evalData?.overall_score ?? "—";
-  const verdict = evalData?.verdict || "";
-  return `
-    <div class="eval-panel expert-only" id="eval-panel-slot">
-      <div style="display:flex;align-items:center;gap:16px">
-        <div>
-          <div class="eval-score">${score}<span style="font-size:14px;color:var(--text-muted)">/10</span></div>
-          <div class="eval-verdict">${esc(verdict)}</div>
-        </div>
-        ${brandScore != null ? `
-          <div style="text-align:center">
-            <div style="font-size:20px;font-weight:700;color:var(--success)">${Math.round(brandScore * 100)}%</div>
-            <div class="eval-verdict">Brand Match</div>
-          </div>
-        ` : ""}
-      </div>
-      ${evalData?.improvements?.length ? `
-        <div style="margin-top:10px">
-          <div class="text-muted" style="font-size:11px;margin-bottom:4px">Improvements</div>
-          ${evalData.improvements.map(i => `<div style="font-size:12px;padding:2px 0">• ${esc(i)}</div>`).join("")}
-        </div>
-      ` : ""}
-    </div>
-  `;
-}
-
 function renderCostPanel(data) {
   const wrap = document.getElementById("cost-panel-wrap");
   if (!wrap) return;
