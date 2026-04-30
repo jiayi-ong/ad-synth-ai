@@ -87,4 +87,33 @@ export const api = {
   // Advertisements
   getAdvertisements: (cid) => request("GET", `/campaigns/${cid}/advertisements`),
   getAdvertisement: (cid, aid) => request("GET", `/campaigns/${cid}/advertisements/${aid}`),
+
+  // Brands
+  getBrands: () => request("GET", "/brands"),
+  getBrand: (bid) => request("GET", `/brands/${bid}`),
+  createBrand: (data) => request("POST", "/brands", data),
+  updateBrand: (bid, data) => request("PATCH", `/brands/${bid}`, data),
+  deleteBrand: (bid) => request("DELETE", `/brands/${bid}`),
+
+  getBrandProducts: (bid) => request("GET", `/brands/${bid}/products`),
+  createBrandProduct: (bid, data) => request("POST", `/brands/${bid}/products`, data),
+  updateBrandProduct: (bid, pid, data) => request("PATCH", `/brands/${bid}/products/${pid}`, data),
+  deleteBrandProduct: (bid, pid) => request("DELETE", `/brands/${bid}/products/${pid}`),
+  uploadBrandProductImage: (bid, pid, file) => {
+    const form = new FormData();
+    form.append("file", file);
+    return request("POST", `/brands/${bid}/products/${pid}/image`, form, true);
+  },
+
+  getBrandPersonas: (bid) => request("GET", `/brands/${bid}/personas`),
+  createBrandPersona: (bid, data) => request("POST", `/brands/${bid}/personas`, data),
+  deleteBrandPersona: (bid, pid) => request("DELETE", `/brands/${bid}/personas/${pid}`),
+
+  // Research
+  startResearch: (data) => request("POST", "/research", data),
+  getResearchHistory: () => request("GET", "/research"),
+  getResearchResult: (id) => request("GET", `/research/${id}`),
+
+  // Evaluate
+  evaluate: (data) => request("POST", "/evaluate", data),
 };

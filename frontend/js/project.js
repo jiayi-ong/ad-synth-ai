@@ -31,11 +31,13 @@ export async function renderProject(campaignId) {
         <div class="tab active" data-tab="products">Products</div>
         <div class="tab" data-tab="personas">Personas</div>
         <div class="tab" data-tab="ads">Advertisements</div>
+        <div class="tab expert-only" data-tab="config">Campaign Config</div>
       </div>
 
       <div id="tab-products">${renderProductsTab(products)}</div>
       <div id="tab-personas" style="display:none">${renderPersonasTab(personas)}</div>
       <div id="tab-ads" style="display:none">${renderAdsTab(ads)}</div>
+      <div id="tab-config" style="display:none">${renderConfigTab(campaign)}</div>
     </div>
   `;
 }
@@ -134,6 +136,34 @@ function renderPersonasTab(personas) {
   `;
 }
 
+function renderConfigTab(campaign) {
+  const channels = campaign.target_channels ? JSON.parse(campaign.target_channels) : [];
+  return `
+    <div class="card">
+      <div class="card-title mb-8">Campaign Configuration</div>
+      <form id="config-form">
+        <div class="form-group">
+          <label>Target Channels</label>
+          <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:4px">
+            ${["meta", "tiktok", "youtube"].map(ch => `
+              <label class="checkbox-label">
+                <input type="checkbox" name="channel" value="${ch}" ${channels.includes(ch) ? "checked" : ""} />
+                ${ch.charAt(0).toUpperCase() + ch.slice(1)}
+              </label>
+            `).join("")}
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Campaign Notes</label>
+          <textarea id="cfg-notes" placeholder="Additional context or special instructions…">${esc(campaign.campaign_notes || "")}</textarea>
+        </div>
+        <button type="submit" class="btn btn-primary btn-sm">Save Config</button>
+        <div class="error-msg" id="config-error"></div>
+      </form>
+    </div>
+  `;
+}
+
 function renderAdsTab(ads) {
   if (!ads.length) return `<div class="empty-state"><p>No advertisements generated yet.</p></div>`;
   return ads.map(a => `
@@ -161,10 +191,31 @@ export function bindProject(campaignId) {
     tab.addEventListener("click", () => {
       document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
       tab.classList.add("active");
-      ["products", "personas", "ads"].forEach(name => {
-        document.getElementById(`tab-${name}`).style.display = tab.dataset.tab === name ? "block" : "none";
+      ["products", "personas", "ads", "config"].forEach(name => {
+        const el = document.getElementById(`tab-${name}`);
+        if (el) el.style.display = tab.dataset.tab === name ? "block" : "none";
       });
     });
+  });
+
+  // Campaign config form
+  document.getElementById("config-form")?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const btn = e.target.querySelector("[type=submit]");
+    btn.disabled = true;
+    document.getElementById("config-error").textContent = "";
+    try {
+      const selectedChannels = [...document.querySelectorAll('input[name="channel"]:checked')].map(cb => cb.value);
+      await api.updateCampaign(campaignId, {
+        target_channels: JSON.stringify(selectedChannels),
+        campaign_notes: document.getElementById("cfg-notes").value.trim() || null,
+      });
+      btn.textContent = "Saved!";
+      setTimeout(() => { btn.textContent = "Save Config"; btn.disabled = false; }, 1500);
+    } catch (err) {
+      document.getElementById("config-error").textContent = err.message;
+      btn.disabled = false;
+    }
   });
 
   // Product form

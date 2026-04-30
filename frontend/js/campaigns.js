@@ -1,9 +1,9 @@
 import { api } from "./api.js";
 
 export async function renderCampaigns() {
-  let campaigns = [];
+  let campaigns = [], brands = [];
   try {
-    campaigns = await api.getCampaigns();
+    [campaigns, brands] = await Promise.all([api.getCampaigns(), api.getBrands()]);
   } catch {}
 
   const cards = campaigns.length
@@ -14,6 +14,10 @@ export async function renderCampaigns() {
         </div>
       `).join("")
     : `<div class="empty-state"><p>No campaigns yet.</p></div>`;
+
+  const brandOptions = brands.length
+    ? brands.map(b => `<option value="${b.id}">${esc(b.name)}</option>`).join("")
+    : "";
 
   return `
     <div class="page">
@@ -33,10 +37,18 @@ export async function renderCampaigns() {
                 <label>Campaign Name *</label>
                 <input id="c-name" required placeholder="Summer 2026" />
               </div>
-              <div class="form-group">
+              ${brands.length ? `
+                <div class="form-group">
+                  <label>Brand Profile (optional)</label>
+                  <select id="c-brand-id">
+                    <option value="">— None —</option>
+                    ${brandOptions}
+                  </select>
+                </div>
+              ` : `<div class="form-group">
                 <label>Brand Guidelines</label>
                 <input id="c-brand" placeholder="Minimalist, bold, premium" />
-              </div>
+              </div>`}
             </div>
             <div class="form-group">
               <label>Mission</label>
@@ -45,6 +57,10 @@ export async function renderCampaigns() {
             <div class="form-group">
               <label>Values</label>
               <input id="c-values" placeholder="Innovation, sustainability, performance" />
+            </div>
+            <div class="form-group expert-only">
+              <label>Campaign Notes</label>
+              <textarea id="c-notes" placeholder="Additional context or special instructions…"></textarea>
             </div>
             <div style="display:flex;gap:8px">
               <button type="submit" class="btn btn-primary">Create</button>
@@ -75,11 +91,15 @@ export function bindCampaigns() {
     btn.disabled = true;
     document.getElementById("campaign-error").textContent = "";
     try {
+      const brandId = document.getElementById("c-brand-id")?.value || null;
+      const brandGuidelines = document.getElementById("c-brand")?.value.trim() || null;
       const campaign = await api.createCampaign({
         name: document.getElementById("c-name").value.trim(),
         mission: document.getElementById("c-mission").value.trim() || null,
         values: document.getElementById("c-values").value.trim() || null,
-        brand_guidelines: document.getElementById("c-brand").value.trim() || null,
+        brand_guidelines: brandGuidelines,
+        brand_profile_id: brandId || null,
+        campaign_notes: document.getElementById("c-notes")?.value.trim() || null,
       });
       window.location.hash = `#project/${campaign.id}`;
     } catch (err) {
@@ -96,5 +116,5 @@ export function bindCampaigns() {
   });
 }
 
-function esc(s) { return (s || "").replace(/</g, "&lt;"); }
+function esc(s) { return (s || "").replace(/&/g, "&amp;").replace(/</g, "&lt;"); }
 function fmt(dt) { return new Date(dt).toLocaleDateString(); }

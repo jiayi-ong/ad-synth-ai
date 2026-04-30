@@ -1,11 +1,15 @@
 const AGENTS = [
-  { key: "product_profile",   label: "1 · Product Understanding",    icon: "📦" },
-  { key: "audience_analysis", label: "2 · Audience & Positioning",   icon: "🎯" },
-  { key: "trend_research",    label: "3 · Trend Research",            icon: "📊" },
-  { key: "creative_directions", label: "4 · Creative Strategy",      icon: "💡" },
-  { key: "selected_persona",  label: "5 · Persona Selection",        icon: "👤" },
-  { key: "image_gen_prompt",  label: "6 · Prompt Engineering",       icon: "✍️" },
-  { key: "marketing_output",  label: "7 · Marketing Recommendations", icon: "📣" },
+  { key: "product_profile",     label: "1 · Product Understanding",    icon: "📦" },
+  { key: "audience_analysis",   label: "2 · Audience & Positioning",   icon: "🎯" },
+  { key: "trend_research",      label: "3 · Trend Research",            icon: "📊" },
+  { key: "competitor_analysis", label: "4 · Competitor Intel",          icon: "🔍" },
+  { key: "creative_directions", label: "5 · Creative Strategy",         icon: "💡" },
+  { key: "selected_persona",    label: "6 · Persona Selection",         icon: "👤" },
+  { key: "image_gen_prompt",    label: "7 · Prompt Engineering",        icon: "✍️" },
+  { key: "marketing_output",    label: "8 · Marketing Recommendations", icon: "📣" },
+  { key: "evaluation_output",   label: "9 · Evaluation",                icon: "⭐" },
+  { key: "channel_adaptation",  label: "10 · Channel Adaptation",       icon: "📱" },
+  { key: "brand_consistency",   label: "11 · Brand Consistency",        icon: "🛡️" },
 ];
 
 export function renderAgentTabs(pipelineState = {}) {
