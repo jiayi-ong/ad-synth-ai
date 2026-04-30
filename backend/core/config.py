@@ -23,7 +23,9 @@ class Settings(BaseSettings):
     # ── Image generation ─────────────────────────────────────────────────────
     image_gen_provider: Literal["vertexai", "gemini", "shortapi", "mock"] = "mock"
     imagen_model: str = "imagen-3.0-generate-002"
-    shortapi_key: str = ""  # ShortAPI image provider key (scaffold)
+    gemini_image_model: str = "gemini-2.0-flash-exp-image-generation"
+    shortapi_api_key: str = ""
+    shortapi_model: str = "flux-1.1-pro"
 
     # ── Search / Trend Research ───────────────────────────────────────────────
     google_cse_api_key: str = ""
