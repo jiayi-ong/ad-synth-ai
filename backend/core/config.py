@@ -54,6 +54,8 @@ class Settings(BaseSettings):
     # ── Observability ─────────────────────────────────────────────────────────
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = "INFO"
     log_format: Literal["json", "text"] = "json"
+    log_dir: str = "logs"
+    log_to_file: bool = True
 
 
 @lru_cache
