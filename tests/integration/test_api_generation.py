@@ -41,7 +41,7 @@ def _make_mock_runner(pipeline_state: dict):
         agent_map = {
             "product_understanding_agent":   PRODUCT_PROFILE,
             "audience_positioning_agent":    AUDIENCE_ANALYSIS,
-            "trend_synthesis_agent":         TREND_RESEARCH,
+            "trend_critic_agent":            TREND_RESEARCH,
             "competitor_agent":              COMPETITOR_ANALYSIS,
             "creative_strategy_agent":       CREATIVE_DIRECTIONS,
             "persona_agent":                 SELECTED_PERSONA,

@@ -45,11 +45,13 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/generate", tags=["generation"])
 
-# Maps agent name → state key it writes to (determines which SSE events are emitted)
+# Maps agent name → state key it writes to (determines which SSE events are emitted).
+# trend_critic_agent is the inner LlmAgent that writes TREND_RESEARCH; the outer
+# trend_research_agent SequentialAgent wrapper does not emit its own final-response event.
 _AGENT_KEY_MAP = {
     "product_understanding_agent":   PRODUCT_PROFILE,
     "audience_positioning_agent":    AUDIENCE_ANALYSIS,
-    "trend_synthesis_agent":         TREND_RESEARCH,      # final agent of TrendPipeline
+    "trend_critic_agent":            TREND_RESEARCH,
     "competitor_agent":              COMPETITOR_ANALYSIS,
     "creative_strategy_agent":       CREATIVE_DIRECTIONS,
     "persona_agent":                 SELECTED_PERSONA,
@@ -62,7 +64,7 @@ _AGENT_KEY_MAP = {
 
 # Agents whose failure does not stop the rest of the pipeline being surfaced
 _NON_CRITICAL_AGENTS = {
-    "trend_synthesis_agent",
+    "trend_critic_agent",
     "competitor_agent",
     "marketing_recommendation_agent",
     "evaluation_agent",
