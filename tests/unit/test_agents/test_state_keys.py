@@ -3,7 +3,7 @@ from backend.pipeline.state_keys import AGENT_OUTPUT_KEYS, IMAGE_GEN_PROMPT, PRO
 
 
 def test_agent_output_keys_count():
-    assert len(AGENT_OUTPUT_KEYS) == 7
+    assert len(AGENT_OUTPUT_KEYS) == 11
 
 
 def test_state_keys_are_strings():

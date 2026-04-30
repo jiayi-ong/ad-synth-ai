@@ -9,7 +9,11 @@ import pytest
 
 from backend.pipeline.state_keys import (
     AUDIENCE_ANALYSIS,
+    BRAND_CONSISTENCY,
+    CHANNEL_ADAPTATION,
+    COMPETITOR_ANALYSIS,
     CREATIVE_DIRECTIONS,
+    EVALUATION_OUTPUT,
     IMAGE_GEN_PROMPT,
     MARKETING_OUTPUT,
     PRODUCT_PROFILE,
@@ -35,13 +39,17 @@ def _make_mock_runner(pipeline_state: dict):
 
     async def mock_run_async(*args, **kwargs):
         agent_map = {
-            "product_understanding_agent": PRODUCT_PROFILE,
-            "audience_positioning_agent": AUDIENCE_ANALYSIS,
-            "trend_research_agent": TREND_RESEARCH,
-            "creative_strategy_agent": CREATIVE_DIRECTIONS,
-            "persona_agent": SELECTED_PERSONA,
-            "prompt_engineering_agent": IMAGE_GEN_PROMPT,
+            "product_understanding_agent":   PRODUCT_PROFILE,
+            "audience_positioning_agent":    AUDIENCE_ANALYSIS,
+            "trend_synthesis_agent":         TREND_RESEARCH,
+            "competitor_agent":              COMPETITOR_ANALYSIS,
+            "creative_strategy_agent":       CREATIVE_DIRECTIONS,
+            "persona_agent":                 SELECTED_PERSONA,
+            "prompt_engineering_agent":      IMAGE_GEN_PROMPT,
             "marketing_recommendation_agent": MARKETING_OUTPUT,
+            "evaluation_agent":              EVALUATION_OUTPUT,
+            "channel_adaptation_agent":      CHANNEL_ADAPTATION,
+            "brand_consistency_agent":       BRAND_CONSISTENCY,
         }
         for agent_name, state_key in agent_map.items():
             yield MockEvent(author=agent_name, state=pipeline_state)
@@ -61,6 +69,7 @@ SAMPLE_PIPELINE_STATE = {
     PRODUCT_PROFILE: {"product_type": "running shoe", "overall_summary": "Test shoe"},
     AUDIENCE_ANALYSIS: {"primary_audience": {"description": "Athletes"}, "mismatch_flags": []},
     TREND_RESEARCH: {"trends": [], "overall_summary": "No trends cached"},
+    COMPETITOR_ANALYSIS: {"competitor_themes": [], "whitespace_opportunities": [], "recommended_differentiation": "speed"},
     CREATIVE_DIRECTIONS: {"recommended_headline": "Run Fast", "creative_directions": []},
     SELECTED_PERSONA: {"persona": {"name": "Alex"}, "source": "new"},
     IMAGE_GEN_PROMPT: {
@@ -69,12 +78,15 @@ SAMPLE_PIPELINE_STATE = {
         "ab_change_description": "Changed scene",
     },
     MARKETING_OUTPUT: {"product_slogan": "Run Lighter", "recommended_platforms": []},
+    EVALUATION_OUTPUT: {"overall_score": 8.0, "dimension_scores": {}, "risks": [], "improvements": [], "verdict": "Good"},
+    CHANNEL_ADAPTATION: {"platform": "meta", "adapted_headline": "Run Fast", "adapted_cta": "Shop Now"},
+    BRAND_CONSISTENCY: {"consistency_score": 0.9, "violations": [], "approved": True},
 }
 
 
 def test_generation_endpoint_returns_sse_stream(client, auth_headers, campaign, product):
     mock_runner = _make_mock_runner(SAMPLE_PIPELINE_STATE)
-    with patch("backend.pipeline.runner_module.get_runner", return_value=mock_runner):
+    with patch("backend.routers.generation.runner_module.get_runner", return_value=mock_runner):
         r = client.post(
             "/generate",
             json={
