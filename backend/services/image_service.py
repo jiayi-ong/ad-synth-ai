@@ -19,7 +19,6 @@ class ImageGenProvider(ABC):
 
 class MockImageGenProvider(ImageGenProvider):
     async def generate(self, prompt: str, reference_image_paths: list[str]) -> GeneratedImage:
-        # Returns a deterministic placeholder — no API calls
         logger.info("MockImageGenProvider.generate() called (no real image generated)")
         return GeneratedImage(
             url="https://placehold.co/800x1000/1a1a24/7c6cf5?text=Ad+Preview",
@@ -47,15 +46,105 @@ class VertexAIImagenProvider(ImageGenProvider):
             ),
         )
         image = response.generated_images[0]
-        # Return base64 data URI
         import base64
         b64 = base64.b64encode(image.image.image_bytes).decode()
         data_url = f"data:image/png;base64,{b64}"
         return GeneratedImage(url=data_url, base64=b64)
 
 
+class GeminiImageProvider(ImageGenProvider):
+    """
+    Uses Gemini's native image generation via the google-genai SDK.
+    Works locally with GOOGLE_API_KEY and on Cloud Run with Vertex AI credentials.
+
+    Model: configurable via GEMINI_IMAGE_MODEL env var.
+    Verify the current model ID at https://ai.google.dev/gemini-api/docs/image-generation
+    Default: gemini-2.0-flash-exp-image-generation
+    """
+
+    async def generate(self, prompt: str, reference_image_paths: list[str]) -> GeneratedImage:
+        import base64
+        from google import genai
+        from google.genai import types
+        from backend.core.config import settings
+
+        if settings.google_genai_use_vertexai:
+            client = genai.Client(
+                vertexai=True,
+                project=settings.gcp_project_id,
+                location=settings.gcp_region,
+            )
+        else:
+            client = genai.Client(api_key=settings.google_api_key)
+
+        response = client.models.generate_content(
+            model=settings.gemini_image_model,
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                response_modalities=["IMAGE", "TEXT"],
+            ),
+        )
+
+        for part in response.candidates[0].content.parts:
+            if getattr(part, "inline_data", None) is not None:
+                b64 = base64.b64encode(part.inline_data.data).decode()
+                mime = part.inline_data.mime_type or "image/png"
+                data_url = f"data:{mime};base64,{b64}"
+                return GeneratedImage(url=data_url, base64=b64)
+
+        raise RuntimeError("GeminiImageProvider: no image part found in response")
+
+
+class ShortAPIProvider(ImageGenProvider):
+    """
+    Aggregated image generation via ShortAPI.io.
+    Supports Stable Diffusion, DALL-E, Flux, and other models through a single endpoint.
+    Works anywhere with SHORTAPI_API_KEY set.
+    """
+
+    async def generate(self, prompt: str, reference_image_paths: list[str]) -> GeneratedImage:
+        import httpx
+        from backend.core.config import settings
+
+        if not settings.shortapi_api_key:
+            raise RuntimeError("SHORTAPI_API_KEY is not configured")
+
+        async with httpx.AsyncClient(timeout=120) as client:
+            resp = await client.post(
+                "https://api.shortapi.io/v1/images/generate",
+                headers={
+                    "Authorization": f"Bearer {settings.shortapi_api_key}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "prompt": prompt,
+                    "model": settings.shortapi_model,
+                    "width": 800,
+                    "height": 1000,
+                },
+            )
+            resp.raise_for_status()
+            data = resp.json()
+
+        # Handle common response envelope shapes across providers
+        url = (
+            data.get("url")
+            or data.get("image_url")
+            or (data.get("data") or [{}])[0].get("url")
+        )
+        if not url:
+            raise RuntimeError(f"ShortAPIProvider: no URL in response: {data}")
+        return GeneratedImage(url=url)
+
+
 def create_image_provider() -> ImageGenProvider:
     from backend.core.config import settings
-    if settings.image_gen_provider == "vertexai":
-        return VertexAIImagenProvider()
-    return MockImageGenProvider()
+    match settings.image_gen_provider:
+        case "vertexai":
+            return VertexAIImagenProvider()
+        case "gemini":
+            return GeminiImageProvider()
+        case "shortapi":
+            return ShortAPIProvider()
+        case _:
+            return MockImageGenProvider()
