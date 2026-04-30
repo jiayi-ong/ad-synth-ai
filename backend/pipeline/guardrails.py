@@ -1,7 +1,7 @@
 """
-Content safety guardrails implemented as ADK before_model_callback.
-Blocks prompts containing racial slurs, violence, sexual content, or hate speech.
+Content safety guardrails and JSON validation callbacks for ADK agents.
 """
+import json
 import logging
 import re
 
@@ -48,3 +48,38 @@ def content_safety_callback(
         )
         return LlmResponse(content=blocked_response.candidates[0].content)
     return None
+
+
+def json_validation_callback(
+    callback_context: CallbackContext,
+    llm_response: LlmResponse,
+) -> LlmResponse | None:
+    """
+    After-model callback: if the agent output is not valid JSON, inject a
+    correction message so ADK re-prompts the model for valid JSON.
+    Returns None (pass-through) if output is already valid JSON.
+    """
+    try:
+        content = llm_response.content
+        if not content or not content.parts:
+            return None
+        text = content.parts[0].text or ""
+        # Strip common markdown fences before checking
+        stripped = text.strip()
+        if stripped.startswith("```"):
+            stripped = stripped.split("```", 2)[-1] if "```" in stripped[3:] else stripped[3:]
+            stripped = stripped.lstrip("json").strip()
+        json.loads(stripped)
+        return None  # Valid JSON — pass through unchanged
+    except (json.JSONDecodeError, AttributeError, IndexError):
+        logger.warning("JSON validation failed for agent %s — requesting correction", callback_context.agent_name)
+        return LlmResponse(
+            content=types.Content(
+                role="model",
+                parts=[types.Part(text=(
+                    "Your previous response was not valid JSON. "
+                    "Return ONLY a valid JSON object with no markdown fences, "
+                    "no surrounding text, and no explanation."
+                ))],
+            )
+        )

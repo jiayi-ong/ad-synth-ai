@@ -6,28 +6,43 @@ RAW_PRODUCT_DESCRIPTION = "raw_product_description"
 RAW_MARKETING_BRIEF = "raw_marketing_brief"
 CAMPAIGN_ID = "campaign_id"
 EXCLUDED_PERSONA_IDS = "excluded_persona_ids"
+BRAND_PROFILE_CONTEXT = "brand_profile_context"   # JSON of linked BrandProfile (if any)
+TARGET_CHANNEL = "target_channel"                  # "meta"|"tiktok"|"youtube"|None
 
 # ── Agent outputs ─────────────────────────────────────────────────────────────
 PRODUCT_PROFILE = "product_profile"
 AUDIENCE_ANALYSIS = "audience_analysis"
+# Trend sub-pipeline intermediates
+TREND_QUERIES = "trend_queries"
+WEB_SEARCH_RESULTS = "web_search_results"
+REDDIT_SEARCH_RESULTS = "reddit_search_results"
+# Main agent outputs (downstream agents read these)
 TREND_RESEARCH = "trend_research"
+COMPETITOR_ANALYSIS = "competitor_analysis"
 CREATIVE_DIRECTIONS = "creative_directions"
 SELECTED_PERSONA = "selected_persona"
 IMAGE_GEN_PROMPT = "image_gen_prompt"
 AB_VARIANT_PROMPT = "ab_variant_prompt"
 MARKETING_OUTPUT = "marketing_output"
+EVALUATION_OUTPUT = "evaluation_output"
+CHANNEL_ADAPTATION = "channel_adaptation"
+BRAND_CONSISTENCY = "brand_consistency"
 
 # ── Cross-agent signals ───────────────────────────────────────────────────────
 MISMATCH_FLAGS = "mismatch_flags"
 PIPELINE_ERROR = "pipeline_error"
 
-# ── All agent output keys in pipeline order ───────────────────────────────────
+# ── All agent output keys in pipeline order (for UI progress tracking) ────────
 AGENT_OUTPUT_KEYS = [
     PRODUCT_PROFILE,
     AUDIENCE_ANALYSIS,
-    TREND_RESEARCH,
+    TREND_RESEARCH,        # emitted by trend_synthesis_agent (end of TrendPipeline)
+    COMPETITOR_ANALYSIS,
     CREATIVE_DIRECTIONS,
     SELECTED_PERSONA,
     IMAGE_GEN_PROMPT,
     MARKETING_OUTPUT,
+    EVALUATION_OUTPUT,
+    CHANNEL_ADAPTATION,
+    BRAND_CONSISTENCY,
 ]
