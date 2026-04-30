@@ -1,9 +1,14 @@
+import os
 import uuid
+from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
 
 from backend.main import app
+
+# Ensure log dir exists so pytest can write pytest.log
+Path("logs").mkdir(exist_ok=True)
 
 
 @pytest.fixture(scope="session")
