@@ -15,6 +15,10 @@ class GenerationRequest(BaseModel):
     positioning: str | None = None
     tone: str | None = None
     extra_notes: str | None = None
+    # Channel for platform-specific adaptation
+    target_channel: str | None = None  # "meta"|"tiktok"|"youtube"|None
+    # Output format (image default; video is a scaffold for future use)
+    output_format: str = "image"  # "image"|"video"
 
 
 class ABVariantRequest(BaseModel):
@@ -33,6 +37,12 @@ class AdvertisementRead(BaseModel):
     ab_variant_prompt: str | None
     ab_variant_url: str | None
     marketing_output: dict[str, Any] | None
+    # New fields
+    target_channel: str | None
+    evaluation_output: dict[str, Any] | None
+    channel_adaptation_output: dict[str, Any] | None
+    brand_consistency_score: float | None
+    brand_profile_id: str | None
     created_at: datetime
 
     model_config = {"from_attributes": True}

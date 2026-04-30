@@ -17,3 +17,8 @@ class Campaign(Base):
     values: Mapped[str | None] = mapped_column(Text)
     brand_guidelines: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    # Brand Brain link — optional; when set, brand context is inherited from the linked BrandProfile
+    brand_profile_id: Mapped[str | None] = mapped_column(String, ForeignKey("brand_profiles.id", ondelete="SET NULL"))
+    # JSON list of target channels e.g. ["meta","tiktok","youtube"]
+    target_channels: Mapped[str | None] = mapped_column(Text)
+    campaign_notes: Mapped[str | None] = mapped_column(Text)

@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, String, Text, func
+from sqlalchemy import DateTime, Float, ForeignKey, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from backend.db.base import Base
@@ -25,3 +25,14 @@ class Advertisement(Base):
     # JSON blob of full marketing_recommendation agent output
     marketing_output: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    # Optional brand and channel context for this ad
+    brand_profile_id: Mapped[str | None] = mapped_column(String)
+    target_channel: Mapped[str | None] = mapped_column(String)
+    # New agent outputs
+    evaluation_output: Mapped[str | None] = mapped_column(Text)
+    channel_adaptation_output: Mapped[str | None] = mapped_column(Text)
+    brand_consistency_score: Mapped[float | None] = mapped_column(Float)
+    # JSON list of text variants {label, hook, headline, cta}
+    text_variants: Mapped[str | None] = mapped_column(Text)
+    # Video generation (extensibility scaffold)
+    video_url: Mapped[str | None] = mapped_column(String)
