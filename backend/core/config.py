@@ -21,8 +21,9 @@ class Settings(BaseSettings):
     gemini_model: str = "gemini-2.0-flash"
 
     # ── Image generation ─────────────────────────────────────────────────────
-    image_gen_provider: Literal["vertexai", "mock"] = "mock"
+    image_gen_provider: Literal["vertexai", "gemini", "shortapi", "mock"] = "mock"
     imagen_model: str = "imagen-3.0-generate-002"
+    shortapi_key: str = ""  # ShortAPI image provider key (scaffold)
 
     # ── Search / Trend Research ───────────────────────────────────────────────
     google_cse_api_key: str = ""
@@ -44,6 +45,10 @@ class Settings(BaseSettings):
     storage_backend: Literal["local", "gcs"] = "local"
     gcs_bucket: str = ""
     upload_dir: Path = Path("data/uploads")
+
+    # ── Observability ─────────────────────────────────────────────────────────
+    log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = "INFO"
+    log_format: Literal["json", "text"] = "json"
 
 
 @lru_cache
