@@ -37,7 +37,7 @@ def _make_mock_runner(pipeline_state: dict):
         agent_map = {
             "product_understanding_agent": PRODUCT_PROFILE,
             "audience_positioning_agent": AUDIENCE_ANALYSIS,
-            "trend_research_agent": TREND_RESEARCH,
+            "trend_critic_agent": TREND_RESEARCH,
             "creative_strategy_agent": CREATIVE_DIRECTIONS,
             "persona_agent": SELECTED_PERSONA,
             "prompt_engineering_agent": IMAGE_GEN_PROMPT,
@@ -74,7 +74,7 @@ SAMPLE_PIPELINE_STATE = {
 
 def test_generation_endpoint_returns_sse_stream(client, auth_headers, campaign, product):
     mock_runner = _make_mock_runner(SAMPLE_PIPELINE_STATE)
-    with patch("backend.pipeline.runner_module.get_runner", return_value=mock_runner):
+    with patch("backend.pipeline.runner.get_runner", return_value=mock_runner):
         r = client.post(
             "/generate",
             json={
