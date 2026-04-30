@@ -10,6 +10,7 @@ from google.adk.runners import Runner
 from google.genai import types
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from backend.core.config import settings
 from backend.core.dependencies import get_current_user
 from backend.db.session import get_db
 from backend.models.advertisement import Advertisement
@@ -37,6 +38,7 @@ from backend.pipeline.state_keys import (
     TARGET_CHANNEL,
     TREND_RESEARCH,
 )
+from backend.pipeline.pipeline_logger import PipelineLogger
 from backend.schemas.advertisement import ABVariantRequest, GenerationRequest
 from backend.services import advertisement_service
 from backend.services.image_service import create_image_provider
@@ -112,6 +114,7 @@ async def generate_ad(
             db=db,
         )
         ad_id = ad.id
+        pl = PipelineLogger(str(ad_id))
         await advertisement_service.set_ad_status(ad, "running", db)
 
         # Store channel on the ad record
@@ -213,13 +216,21 @@ async def generate_ad(
                         input_tokens = getattr(event.usage_metadata, "prompt_token_count", 0) or 0
                         output_tokens = getattr(event.usage_metadata, "candidates_token_count", 0) or 0
                     cost = (input_tokens / 1e6 * _INPUT_COST_PER_M) + (output_tokens / 1e6 * _OUTPUT_COST_PER_M)
-                    agent_telemetry.append({
+                    telemetry_entry = {
                         "agent": agent_name,
                         "latency_ms": round((end_time - start_time) * 1000, 1),
                         "input_tokens": input_tokens,
                         "output_tokens": output_tokens,
                         "cost_usd": round(cost, 6),
-                    })
+                    }
+                    agent_telemetry.append(telemetry_entry)
+                    pl.log_agent_complete(
+                        agent_name=agent_name,
+                        latency_ms=telemetry_entry["latency_ms"],
+                        input_tokens=input_tokens,
+                        output_tokens=output_tokens,
+                        cost_usd=cost,
+                    )
 
                     # Retrieve the agent's output from session state
                     current_session = await runner.session_service.get_session(
@@ -275,18 +286,24 @@ async def generate_ad(
 
         # 6. Trigger image generation
         if ad.image_gen_prompt:
+            img_start = time.monotonic()
             try:
                 yield _sse("image_generating", {"advertisement_id": ad_id})
                 image_provider = create_image_provider()
                 image_paths = []
                 if product and product.image_path:
                     image_paths = [product.image_path]
-                img_start = time.monotonic()
                 generated = await image_provider.generate(ad.image_gen_prompt, image_paths)
                 ad.image_url = generated.url
+                img_latency = round((time.monotonic() - img_start) * 1000, 1)
+                pl.log_image_generation(
+                    provider=settings.image_gen_provider,
+                    latency_ms=img_latency,
+                    success=True,
+                )
                 agent_telemetry.append({
                     "agent": "image_generation",
-                    "latency_ms": round((time.monotonic() - img_start) * 1000, 1),
+                    "latency_ms": img_latency,
                     "input_tokens": 0,
                     "output_tokens": 0,
                     "cost_usd": 0.0,
@@ -305,6 +322,12 @@ async def generate_ad(
                 })
             except Exception as e:
                 logger.exception("Image generation failed for ad %s: %s", ad_id, e)
+                pl.log_image_generation(
+                    provider=settings.image_gen_provider,
+                    latency_ms=round((time.monotonic() - img_start) * 1000, 1),
+                    success=False,
+                    error=str(e),
+                )
                 yield _sse("error", {"agent": "image_generation", "data": {"message": str(e)}})
 
         # 7. Persist telemetry and finalize
@@ -320,6 +343,13 @@ async def generate_ad(
         if not ad.image_url:
             final_status = "partial_failure"
         await advertisement_service.set_ad_status(ad, final_status, db)
+        pl.log_pipeline_complete(
+            user_id=str(user_id),
+            total_cost_usd=total_cost,
+            total_latency_ms=total_latency,
+            status=final_status,
+            agent_summary=agent_telemetry,
+        )
         yield _sse("done", {"advertisement_id": ad_id, "status": final_status})
         yield _sse("cost_summary", {
             "total_cost_usd": round(total_cost, 6),

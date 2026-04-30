@@ -67,7 +67,8 @@ def json_validation_callback(
         # Strip common markdown fences before checking
         stripped = text.strip()
         if stripped.startswith("```"):
-            stripped = stripped.split("```", 2)[-1] if "```" in stripped[3:] else stripped[3:]
+            # Split on fence: ['', 'json\n{...}\n', ''] — take middle piece [1]
+            stripped = stripped.split("```", 2)[1] if "```" in stripped[3:] else stripped[3:]
             stripped = stripped.lstrip("json").strip()
         json.loads(stripped)
         return None  # Valid JSON — pass through unchanged

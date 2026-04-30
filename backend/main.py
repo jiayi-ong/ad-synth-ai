@@ -1,5 +1,4 @@
 import logging
-import logging.config
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -7,6 +6,7 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
 from backend.core.config import settings
+from backend.core.logger import setup_logging
 from backend.core.logging_middleware import ObservabilityMiddleware
 from backend.db.base import Base, engine
 from backend.routers import advertisements, auth, brands, campaigns, evaluate, generation, personas, products, research
@@ -15,21 +15,13 @@ from backend.routers import advertisements, auth, brands, campaigns, evaluate, g
 import backend.models  # noqa: F401
 
 
-def _configure_logging() -> None:
-    level = getattr(logging, settings.log_level, logging.INFO)
-    if settings.log_format == "json":
-        fmt = "%(message)s"
-    else:
-        fmt = "%(asctime)s %(levelname)s %(name)s %(message)s"
-    logging.basicConfig(level=level, format=fmt)
-
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    _configure_logging()
-    # Ensure data directory exists
+    setup_logging(settings)
+    # Ensure data and log directories exist
     Path("data").mkdir(exist_ok=True)
     settings.upload_dir.mkdir(parents=True, exist_ok=True)
+    Path(settings.log_dir).mkdir(exist_ok=True)
     # Create all tables
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
