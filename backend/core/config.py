@@ -30,6 +30,9 @@ class Settings(BaseSettings):
     reddit_client_id: str = ""
     reddit_client_secret: str = ""
     reddit_user_agent: str = "ad-synth-ai/0.1"
+    youtube_api_key: str = ""
+    twitter_bearer_token: str = ""
+    serpapi_api_key: str = ""
 
     # ── Auth ──────────────────────────────────────────────────────────────────
     jwt_secret_key: str = "dev-secret-change-in-prod"
