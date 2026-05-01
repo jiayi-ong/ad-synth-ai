@@ -27,3 +27,19 @@ web_search_agent = LlmAgent(
         FunctionTool(google_trends_search),
     ],
 )
+
+
+def build_web_search_agent() -> LlmAgent:
+    return LlmAgent(
+        name="web_search_agent",
+        model=settings.gemini_model,
+        instruction=_load_prompt("web_search_agent"),
+        output_key=WEB_SEARCH_RESULTS,
+        before_model_callback=content_safety_callback,
+        tools=[
+            FunctionTool(check_trend_cache),
+            FunctionTool(store_trend_cache),
+            FunctionTool(google_custom_search),
+            FunctionTool(google_trends_search),
+        ],
+    )

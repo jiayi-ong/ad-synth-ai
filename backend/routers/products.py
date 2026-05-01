@@ -10,6 +10,15 @@ from backend.schemas.product import ProductCreate, ProductRead, ProductUpdate
 from backend.services import product_service
 
 router = APIRouter(prefix="/campaigns/{campaign_id}/products", tags=["products"])
+all_router = APIRouter(prefix="/products", tags=["products"])
+
+
+@all_router.get("", response_model=list[ProductRead])
+async def list_all_user(
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    return await product_service.list_all_user_products(user.id, db)
 
 
 @router.post("", response_model=ProductRead, status_code=201)

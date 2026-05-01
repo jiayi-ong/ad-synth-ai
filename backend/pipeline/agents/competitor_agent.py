@@ -26,3 +26,19 @@ competitor_agent = LlmAgent(
         FunctionTool(google_custom_search),
     ],
 )
+
+
+def build_competitor_agent() -> LlmAgent:
+    """Build a fresh (unparented) competitor agent for standalone use."""
+    return LlmAgent(
+        name="competitor_agent",
+        model=settings.gemini_model,
+        instruction=_load_prompt("competitor_agent"),
+        output_key=COMPETITOR_ANALYSIS,
+        before_model_callback=content_safety_callback,
+        tools=[
+            FunctionTool(check_research_cache),
+            FunctionTool(store_research_cache),
+            FunctionTool(google_custom_search),
+        ],
+    )

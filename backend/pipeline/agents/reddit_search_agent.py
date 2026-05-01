@@ -24,3 +24,17 @@ reddit_search_agent = LlmAgent(
         FunctionTool(get_trending_posts),
     ],
 )
+
+
+def build_reddit_search_agent() -> LlmAgent:
+    return LlmAgent(
+        name="reddit_search_agent",
+        model=settings.gemini_model,
+        instruction=_load_prompt("reddit_search_agent"),
+        output_key=REDDIT_SEARCH_RESULTS,
+        before_model_callback=content_safety_callback,
+        tools=[
+            FunctionTool(search_reddit),
+            FunctionTool(get_trending_posts),
+        ],
+    )

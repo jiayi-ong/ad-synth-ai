@@ -29,20 +29,19 @@ class AdvertisementRead(BaseModel):
     id: str
     campaign_id: str
     product_id: str
-    persona_ids: list[str] | None
+    persona_ids: list[str] | None = None
     status: str
-    pipeline_state: dict[str, Any] | None
-    image_gen_prompt: str | None
-    image_url: str | None
-    ab_variant_prompt: str | None
-    ab_variant_url: str | None
-    marketing_output: dict[str, Any] | None
-    # New fields
-    target_channel: str | None
-    evaluation_output: dict[str, Any] | None
-    channel_adaptation_output: dict[str, Any] | None
-    brand_consistency_score: float | None
-    brand_profile_id: str | None
+    pipeline_state: dict[str, Any] | None = None
+    image_gen_prompt: str | None = None
+    image_url: str | None = None
+    ab_variant_prompt: str | None = None
+    ab_variant_url: str | None = None
+    marketing_output: dict[str, Any] | None = None
+    target_channel: str | None = None
+    evaluation_output: dict[str, Any] | None = None
+    channel_adaptation_output: dict[str, Any] | None = None
+    brand_consistency_score: float | None = None
+    brand_profile_id: str | None = None
     created_at: datetime
 
     model_config = {"from_attributes": True}
