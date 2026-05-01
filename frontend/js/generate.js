@@ -318,7 +318,13 @@ function handleSSEEvent(evt) {
   }
 
   if (event === "error") {
-    setAgentError(agent, data?.message || "Unknown error");
+    const msg = data?.message || "Unknown error";
+    if (agent === "pipeline") {
+      document.getElementById("gen-error").textContent = `Pipeline error: ${msg}`;
+      document.getElementById("gen-btn").disabled = false;
+    } else {
+      setAgentError(agent, msg);
+    }
   }
 
   if (event === "image_ready") {
