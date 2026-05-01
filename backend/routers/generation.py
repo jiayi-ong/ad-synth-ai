@@ -102,6 +102,25 @@ async def generate_ad(
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
     async def event_stream() -> AsyncGenerator[str, None]:
+        from sqlalchemy import select
+        from backend.models.product import Product
+        from backend.models.campaign import Campaign
+
+        # 0. Load and validate product BEFORE creating any records
+        product = await db.scalar(select(Product).where(Product.id == request.product_id))
+        if not product:
+            yield _sse("error", {"agent": "pipeline", "data": {"message": "Product not found."}})
+            return
+        if not (product.description or "").strip():
+            yield _sse("error", {"agent": "pipeline", "data": {
+                "message": (
+                    f"Product '{product.name}' has no description. "
+                    "Please add a product description before generating an ad — "
+                    "the pipeline agents rely on it to understand what to advertise."
+                )
+            }})
+            return
+
         pipeline_start = time.monotonic()
         agent_telemetry: list[dict] = []
 
@@ -125,12 +144,7 @@ async def generate_ad(
         yield _sse("started", {"advertisement_id": ad_id})
 
         # 2. Build product description + marketing brief
-        from sqlalchemy import select
-        from backend.models.product import Product
-        from backend.models.campaign import Campaign
-
-        product = await db.scalar(select(Product).where(Product.id == request.product_id))
-        product_desc = f"{product.name}\n{product.description or ''}" if product else ""
+        product_desc = f"{product.name}\n{product.description}"
 
         brief_parts = []
         if request.target_audience:
