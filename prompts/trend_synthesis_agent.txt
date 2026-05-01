@@ -9,7 +9,7 @@ Your job is to take the aggregated cross-platform trend data and translate it in
 - `trend_keywords`: Keywords used for this research session.
 
 ## Your Responsibilities
-1. First, call `check_trend_cache` with a composite query: "{product_type} {primary_audience_description}". If a cache hit is returned (not None), incorporate it as prior context but still synthesize fresh data on top.
+1. First, extract the `product_type` field from `product_profile` and the `description` field from `audience_analysis.primary_audience`. Concatenate them into a single string (e.g. "sneaker urban professionals aged 25-35") and call `check_trend_cache` with that composite string as the query. If a cache hit is returned (not None), incorporate it as prior context but still synthesize fresh data on top.
 2. For each top trend in `aggregated_trend_data`, evaluate: How relevant is this to THIS specific product and audience? Is it directly applicable, tangentially relevant, or irrelevant? Keep only directly and tangentially relevant trends.
 3. Synthesize visual aesthetic signals into concrete ad design directions.
 4. Identify competitor ad patterns that this product should differentiate from or strategically mirror.

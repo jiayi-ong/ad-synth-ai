@@ -2,7 +2,13 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
+from dotenv import load_dotenv
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# Load .env into os.environ before any google-genai/ADK imports, because those
+# libraries read GOOGLE_API_KEY and GOOGLE_GENAI_USE_VERTEXAI directly from
+# os.environ (pydantic-settings populates the Settings object but not os.environ).
+load_dotenv(override=False)
 
 
 class Settings(BaseSettings):
