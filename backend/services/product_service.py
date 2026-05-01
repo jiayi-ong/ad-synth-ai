@@ -11,6 +11,16 @@ from backend.models.product import Product
 from backend.schemas.product import ProductCreate, ProductRead, ProductUpdate
 
 
+async def list_all_user_products(user_id: str, db: AsyncSession) -> list[ProductRead]:
+    """Return all products across all campaigns owned by this user."""
+    rows = await db.scalars(
+        select(Product)
+        .join(Campaign, Campaign.id == Product.campaign_id)
+        .where(Campaign.user_id == user_id)
+    )
+    return [ProductRead.model_validate(p) for p in rows]
+
+
 async def create_product(campaign_id: str, payload: ProductCreate, user_id: str, db: AsyncSession) -> ProductRead:
     await _assert_campaign_owned(campaign_id, user_id, db)
     product = Product(campaign_id=campaign_id, **payload.model_dump())

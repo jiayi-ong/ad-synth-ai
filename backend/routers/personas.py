@@ -10,6 +10,15 @@ from backend.schemas.persona import PersonaCreate, PersonaRead, PersonaUpdate
 from backend.services import persona_service
 
 router = APIRouter(prefix="/campaigns/{campaign_id}/personas", tags=["personas"])
+all_router = APIRouter(prefix="/personas", tags=["personas"])
+
+
+@all_router.get("", response_model=list[PersonaRead])
+async def list_all_user(
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    return await persona_service.list_all_user_personas(user.id, db)
 
 
 @router.post("", response_model=PersonaRead, status_code=201)

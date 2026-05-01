@@ -9,6 +9,16 @@ from backend.models.persona import Persona
 from backend.schemas.persona import PersonaCreate, PersonaRead, PersonaUpdate
 
 
+async def list_all_user_personas(user_id: str, db: AsyncSession) -> list[PersonaRead]:
+    """Return all personas across all campaigns owned by this user."""
+    rows = await db.scalars(
+        select(Persona)
+        .join(Campaign, Campaign.id == Persona.campaign_id)
+        .where(Campaign.user_id == user_id)
+    )
+    return [_to_schema(p) for p in rows]
+
+
 async def create_persona(campaign_id: str, payload: PersonaCreate, user_id: str, db: AsyncSession) -> PersonaRead:
     await _assert_campaign_owned(campaign_id, user_id, db)
     persona = Persona(

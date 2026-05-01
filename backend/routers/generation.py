@@ -53,7 +53,7 @@ router = APIRouter(prefix="/generate", tags=["generation"])
 _AGENT_KEY_MAP = {
     "product_understanding_agent":   PRODUCT_PROFILE,
     "audience_positioning_agent":    AUDIENCE_ANALYSIS,
-    "trend_critic_agent":            TREND_RESEARCH,
+    "trend_synthesis_agent":         TREND_RESEARCH,   # final agent in trend_research_pipeline
     "competitor_agent":              COMPETITOR_ANALYSIS,
     "creative_strategy_agent":       CREATIVE_DIRECTIONS,
     "persona_agent":                 SELECTED_PERSONA,
@@ -174,12 +174,12 @@ async def generate_ad(
         }
 
         # 5. Run ADK pipeline, streaming events
-        runner = runner_module.get_runner()
         session_id = f"ad_{ad_id}"
         user_id = current_user.id
         progress = 0
 
         try:
+            runner = runner_module.get_runner()
             await runner.session_service.create_session(
                 app_name="ad_synth_ai",
                 user_id=user_id,

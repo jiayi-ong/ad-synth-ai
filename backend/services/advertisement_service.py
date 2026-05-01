@@ -61,6 +61,11 @@ def _to_schema(ad: Advertisement) -> AdvertisementRead:
         ab_variant_prompt=ad.ab_variant_prompt,
         ab_variant_url=ad.ab_variant_url,
         marketing_output=json.loads(ad.marketing_output) if ad.marketing_output else None,
+        target_channel=ad.target_channel,
+        evaluation_output=json.loads(ad.evaluation_output) if ad.evaluation_output else None,
+        channel_adaptation_output=json.loads(ad.channel_adaptation_output) if ad.channel_adaptation_output else None,
+        brand_consistency_score=ad.brand_consistency_score,
+        brand_profile_id=ad.brand_profile_id,
         created_at=ad.created_at,
     )
 

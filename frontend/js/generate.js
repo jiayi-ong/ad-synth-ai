@@ -13,8 +13,8 @@ export async function renderGenerate(campaignId, existingAdId = null) {
   let products = [], personas = [], existingAd = null, campaign = null;
   try {
     [products, personas, campaign] = await Promise.all([
-      api.getProducts(campaignId),
-      api.getPersonas(campaignId),
+      api.getAllProducts(),
+      api.getAllPersonas(),
       api.get(`/campaigns/${campaignId}`),
     ]);
     if (existingAdId) {
@@ -42,7 +42,9 @@ export async function renderGenerate(campaignId, existingAdId = null) {
                 <label>Product *</label>
                 <select id="gen-product" required>
                   <option value="">Select a product…</option>
-                  ${products.map(p => `<option value="${p.id}">${esc(p.name)}</option>`).join("")}
+                  ${products.map(p => `<option value="${p.id}" ${p.campaign_id === campaignId ? "" : ""}>
+                    ${esc(p.name)}${p.campaign_id !== campaignId ? " (other campaign)" : ""}
+                  </option>`).join("")}
                 </select>
               </div>
               <div class="form-group">
@@ -90,7 +92,7 @@ export async function renderGenerate(campaignId, existingAdId = null) {
                   <label class="checkbox-label mb-8">
                     <input type="checkbox" name="persona" value="${p.id}" />
                     <div>
-                      <strong>${esc(p.name)}</strong>
+                      <strong>${esc(p.name)}</strong>${p.campaign_id !== campaignId ? ' <span class="text-muted" style="font-size:11px">(other campaign)</span>' : ""}
                       <div class="text-muted" style="font-size:12px">${p.traits ? Object.values(p.traits).slice(0,2).join(" · ") : ""}</div>
                     </div>
                   </label>
@@ -336,7 +338,12 @@ function handleSSEEvent(evt) {
 
   if (event === "done") {
     document.getElementById("gen-btn").disabled = false;
-    document.getElementById("gen-status-text").textContent = "Generation complete!";
+    const { status } = evt;
+    if (status === "completed") {
+      document.getElementById("gen-status-text").textContent = "Generation complete!";
+    } else {
+      document.getElementById("gen-status-text").textContent = `Generation finished with status: ${status || "unknown"}`;
+    }
     if (advertisement_id) _existingAdId = advertisement_id;
   }
 }

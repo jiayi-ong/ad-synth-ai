@@ -67,7 +67,8 @@ export const api = {
   updateCampaign: (id, data) => request("PATCH", `/campaigns/${id}`, data),
   deleteCampaign: (id) => request("DELETE", `/campaigns/${id}`),
 
-  // Products
+  // Products (all across campaigns, or scoped to one campaign)
+  getAllProducts: () => request("GET", "/products"),
   getProducts: (cid) => request("GET", `/campaigns/${cid}/products`),
   createProduct: (cid, data) => request("POST", `/campaigns/${cid}/products`, data),
   updateProduct: (cid, pid, data) => request("PATCH", `/campaigns/${cid}/products/${pid}`, data),
@@ -78,7 +79,8 @@ export const api = {
     return request("POST", `/campaigns/${cid}/products/${pid}/image`, form, true);
   },
 
-  // Personas
+  // Personas (all across campaigns, or scoped to one campaign)
+  getAllPersonas: () => request("GET", "/personas"),
   getPersonas: (cid) => request("GET", `/campaigns/${cid}/personas`),
   createPersona: (cid, data) => request("POST", `/campaigns/${cid}/personas`, data),
   updatePersona: (cid, pid, data) => request("PATCH", `/campaigns/${cid}/personas/${pid}`, data),

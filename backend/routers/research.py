@@ -12,8 +12,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from backend.core.dependencies import get_current_user
 from backend.db.session import get_db
 from backend.models.user import User
-from backend.pipeline.agents.competitor_agent import competitor_agent
-from backend.pipeline.agents.trend_pipeline import trend_research_pipeline
+from backend.pipeline.agents.competitor_agent import build_competitor_agent
+from backend.pipeline.agents.trend_pipeline import build_trend_research_pipeline
 from backend.pipeline.standalone_runner import build_pipeline_runner
 from backend.pipeline.state_keys import (
     COMPETITOR_ANALYSIS,
@@ -62,27 +62,26 @@ async def run_research(
             "force_refresh": request.force_refresh,
         }
 
-        # Select sub-agents based on research_type
-        if request.research_type == "trends":
-            sub_agents = [trend_research_pipeline]
-        elif request.research_type == "competitors":
-            sub_agents = [competitor_agent]
-        else:
-            sub_agents = [trend_research_pipeline, competitor_agent]
-
         try:
             from google.adk.agents import SequentialAgent
-            if len(sub_agents) > 1:
-                pipeline = ParallelAgent(name="research_pipeline", sub_agents=sub_agents)
-                from backend.pipeline.standalone_runner import build_pipeline_runner
-                runner = build_pipeline_runner(
-                    SequentialAgent(name="research_wrapper", sub_agents=[pipeline])
-                )
+            # Build fresh (unparented) agent instances — the module-level singletons
+            # are already parented to the main ad-generation pipeline.
+            if request.research_type == "trends":
+                pipeline = build_trend_research_pipeline()
+            elif request.research_type == "competitors":
+                pipeline = build_competitor_agent()
+                pipeline = SequentialAgent(name="research_wrapper", sub_agents=[pipeline])
             else:
-                from backend.pipeline.standalone_runner import build_pipeline_runner
-                runner = build_pipeline_runner(
-                    SequentialAgent(name="research_wrapper", sub_agents=sub_agents)
+                parallel = ParallelAgent(
+                    name="research_pipeline",
+                    sub_agents=[build_trend_research_pipeline(), build_competitor_agent()],
                 )
+                pipeline = SequentialAgent(name="research_wrapper", sub_agents=[parallel])
+
+            runner = build_pipeline_runner(
+                pipeline if isinstance(pipeline, SequentialAgent) else
+                SequentialAgent(name="research_wrapper", sub_agents=[pipeline])
+            )
 
             session_id = f"research_{research_id}"
             user_id = current_user.id
