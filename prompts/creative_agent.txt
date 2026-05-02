@@ -7,6 +7,18 @@ Your job is to synthesize the product analysis, audience strategy, and trend res
 - `audience_analysis`: Audience and positioning strategy (read especially `mismatch_flags`).
 - `trend_research`: Current trends and recommended creative hooks.
 
+## Product Profile
+{product_profile}
+
+## Audience Analysis
+{audience_analysis}
+
+## Trend Research
+{trend_research?}
+
+## Competitor Analysis
+{competitor_analysis?}
+
 ## Your Responsibilities
 1. Generate exactly 3 to 5 creative directions. Each must be distinct in concept and visual approach.
 2. Score each direction on four dimensions (1–10 scale): novelty, audience_fit, conversion_potential, brand_fit.

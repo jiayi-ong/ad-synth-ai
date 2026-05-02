@@ -48,25 +48,27 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/generate", tags=["generation"])
 
 # Maps agent name → state key it writes to (determines which SSE events are emitted).
-# trend_critic_agent is the inner LlmAgent that writes TREND_RESEARCH; the outer
-# trend_research_agent SequentialAgent wrapper does not emit its own final-response event.
+# trend_validator_agent is the final agent in the trend sub-pipeline; it reads and
+# validates the synthesis output then writes the corrected version to TREND_RESEARCH.
+# trend_synthesis_agent is intentionally omitted — the validator's corrected output
+# supersedes it, so we emit only one SSE event for trend_research.
 _AGENT_KEY_MAP = {
-    "product_understanding_agent":   PRODUCT_PROFILE,
-    "audience_positioning_agent":    AUDIENCE_ANALYSIS,
-    "trend_synthesis_agent":         TREND_RESEARCH,   # final agent in trend_research_pipeline
-    "competitor_agent":              COMPETITOR_ANALYSIS,
-    "creative_strategy_agent":       CREATIVE_DIRECTIONS,
-    "persona_agent":                 SELECTED_PERSONA,
-    "prompt_engineering_agent":      IMAGE_GEN_PROMPT,
+    "product_understanding_agent":    PRODUCT_PROFILE,
+    "audience_positioning_agent":     AUDIENCE_ANALYSIS,
+    "trend_validator_agent":          TREND_RESEARCH,
+    "competitor_agent":               COMPETITOR_ANALYSIS,
+    "creative_strategy_agent":        CREATIVE_DIRECTIONS,
+    "persona_agent":                  SELECTED_PERSONA,
+    "prompt_engineering_agent":       IMAGE_GEN_PROMPT,
     "marketing_recommendation_agent": MARKETING_OUTPUT,
-    "evaluation_agent":              EVALUATION_OUTPUT,
-    "channel_adaptation_agent":      CHANNEL_ADAPTATION,
-    "brand_consistency_agent":       BRAND_CONSISTENCY,
+    "evaluation_agent":               EVALUATION_OUTPUT,
+    "channel_adaptation_agent":       CHANNEL_ADAPTATION,
+    "brand_consistency_agent":        BRAND_CONSISTENCY,
 }
 
 # Agents whose failure does not stop the rest of the pipeline being surfaced
 _NON_CRITICAL_AGENTS = {
-    "trend_critic_agent",
+    "trend_validator_agent",
     "competitor_agent",
     "marketing_recommendation_agent",
     "evaluation_agent",
@@ -89,9 +91,20 @@ def _sse(event: str, data: dict) -> str:
 def _parse_json_output(raw: str | None) -> dict | str:
     if not raw:
         return {}
+    text = raw.strip()
+    # Strip markdown code fences that LLMs occasionally emit despite instructions
+    if text.startswith("```"):
+        lines = text.splitlines()
+        # Drop opening fence line (```json or ```) and closing ``` if present
+        start = 1
+        end = len(lines)
+        if lines[-1].strip() == "```":
+            end -= 1
+        text = "\n".join(lines[start:end]).strip()
     try:
-        return json.loads(raw)
+        return json.loads(text)
     except (json.JSONDecodeError, TypeError):
+        logger.warning("_parse_json_output: could not parse as JSON (len=%d, preview=%r)", len(raw), raw[:200])
         return raw or {}
 
 
@@ -144,7 +157,10 @@ async def generate_ad(
         yield _sse("started", {"advertisement_id": ad_id})
 
         # 2. Build product description + marketing brief
-        product_desc = f"{product.name}\n{product.description}"
+        # Use `or ""` to guard against a None description slipping through as
+        # the literal string "None" inside the prompt.
+        desc_text = (product.description or "").strip()
+        product_desc = f"{product.name}\n{desc_text}" if desc_text else product.name
 
         brief_parts = []
         if request.target_audience:
@@ -187,6 +203,19 @@ async def generate_ad(
             TARGET_CHANNEL: request.target_channel or "",
         }
 
+        # Log all user inputs at pipeline start for observability / debugging
+        pl.log_generation_start(
+            user_id=str(current_user.id),
+            product_id=request.product_id,
+            product_name=product.name,
+            product_description=desc_text,
+            campaign_id=request.campaign_id,
+            marketing_brief=marketing_brief,
+            target_channel=request.target_channel,
+            image_gen_provider=settings.image_gen_provider,
+            persona_ids=request.persona_ids,
+        )
+
         # 5. Run ADK pipeline, streaming events
         session_id = f"ad_{ad_id}"
         user_id = current_user.id
@@ -211,9 +240,11 @@ async def generate_ad(
                     parts=[types.Part(text="Generate the advertisement based on the product description and marketing brief in session state.")],
                 ),
             ):
-                # Track agent start times for telemetry
+                # Track agent start times for telemetry; emit agent_start SSE on first event
                 if hasattr(event, "author") and event.author and event.author not in agent_start_times:
                     agent_start_times[event.author] = time.monotonic()
+                    if event.author in _AGENT_KEY_MAP:
+                        yield _sse("agent_start", {"agent": _AGENT_KEY_MAP[event.author]})
 
                 # Detect agent completion events
                 if event.is_final_response() and event.author in _AGENT_KEY_MAP:
@@ -253,17 +284,54 @@ async def generate_ad(
                         session_id=session_id,
                     )
                     raw_output = current_session.state.get(state_key, "")
+                    logger.debug(
+                        "agent_output_raw ad=%s agent=%s key=%s len=%d preview=%r",
+                        ad_id, agent_name, state_key, len(raw_output or ""), (raw_output or "")[:300],
+                    )
                     parsed = _parse_json_output(raw_output)
+
+                    # Build a lightweight summary for the pipeline log
+                    output_summary: dict = {"parsed_keys": list(parsed.keys()) if isinstance(parsed, dict) else []}
+                    if isinstance(parsed, dict):
+                        if state_key == PRODUCT_PROFILE:
+                            output_summary["product_name_literal"] = parsed.get("product_name_literal", "")
+                            output_summary["product_type"] = parsed.get("product_type", "")
+                        elif state_key == IMAGE_GEN_PROMPT:
+                            output_summary["has_image_gen_prompt"] = bool(parsed.get("image_gen_prompt"))
+                            output_summary["has_ab_variant_prompt"] = bool(parsed.get("ab_variant_prompt"))
+                    pl.log_agent_output(
+                        agent_name=agent_name,
+                        state_key=state_key,
+                        parsed_type=type(parsed).__name__,
+                        raw_len=len(raw_output or ""),
+                        output_summary=output_summary,
+                    )
 
                     # Persist to DB
                     await advertisement_service.update_pipeline_state(ad, state_key, parsed, db)
 
                     # Special handling: extract specific fields from outputs
-                    if state_key == IMAGE_GEN_PROMPT and isinstance(parsed, dict):
-                        if parsed.get("image_gen_prompt"):
-                            ad.image_gen_prompt = parsed["image_gen_prompt"]
-                        if parsed.get("ab_variant_prompt"):
-                            ad.ab_variant_prompt = parsed["ab_variant_prompt"]
+                    if state_key == IMAGE_GEN_PROMPT:
+                        if isinstance(parsed, dict):
+                            prompt_text = parsed.get("image_gen_prompt") or ""
+                            if prompt_text:
+                                ad.image_gen_prompt = prompt_text
+                                logger.info(
+                                    "image_gen_prompt_set ad=%s prompt_len=%d preview=%r",
+                                    ad_id, len(prompt_text), prompt_text[:150],
+                                )
+                            else:
+                                logger.warning(
+                                    "image_gen_prompt_missing ad=%s parsed_keys=%s",
+                                    ad_id, list(parsed.keys()),
+                                )
+                            if parsed.get("ab_variant_prompt"):
+                                ad.ab_variant_prompt = parsed["ab_variant_prompt"]
+                        else:
+                            logger.warning(
+                                "image_gen_prompt_not_dict ad=%s parsed_type=%s raw_preview=%r",
+                                ad_id, type(parsed).__name__, (raw_output or "")[:300],
+                            )
                         await db.commit()
 
                     if state_key == MARKETING_OUTPUT and isinstance(parsed, dict):
@@ -284,6 +352,21 @@ async def generate_ad(
                             ad.brand_consistency_score = float(score)
                         await db.commit()
 
+                    if state_key == SELECTED_PERSONA and isinstance(parsed, dict):
+                        if parsed.get("save_new_persona") and isinstance(parsed.get("persona"), dict):
+                            from backend.models.persona import Persona as PersonaModel
+                            p_data = parsed["persona"]
+                            traits = {k: v for k, v in p_data.items() if k != "name"}
+                            new_persona = PersonaModel(
+                                campaign_id=str(request.campaign_id),
+                                name=p_data.get("name", "Generated Persona"),
+                                traits=json.dumps(traits),
+                            )
+                            db.add(new_persona)
+                            await db.commit()
+                            await db.refresh(new_persona)
+                            logger.info("Saved new persona %s for campaign %s", new_persona.id, request.campaign_id)
+
                     yield _sse("agent_complete", {
                         "agent": state_key,
                         "data": parsed,
@@ -299,16 +382,25 @@ async def generate_ad(
             yield _sse("error", {"agent": "pipeline", "data": {"message": str(e)}})
 
         # 6. Trigger image generation
+        logger.info(
+            "image_gen_check ad=%s has_prompt=%s prompt_len=%s provider=%s",
+            ad_id, bool(ad.image_gen_prompt), len(ad.image_gen_prompt or ""), settings.image_gen_provider,
+        )
         if ad.image_gen_prompt:
             img_start = time.monotonic()
             try:
                 yield _sse("image_generating", {"advertisement_id": ad_id})
                 image_provider = create_image_provider()
+                logger.info(
+                    "image_gen_start ad=%s provider=%s prompt_preview=%r",
+                    ad_id, settings.image_gen_provider, ad.image_gen_prompt[:200],
+                )
                 image_paths = []
                 if product and product.image_path:
                     image_paths = [product.image_path]
                 generated = await image_provider.generate(ad.image_gen_prompt, image_paths)
                 ad.image_url = generated.url
+                logger.info("image_gen_success ad=%s url_prefix=%r", ad_id, (generated.url or "")[:80])
                 img_latency = round((time.monotonic() - img_start) * 1000, 1)
                 pl.log_image_generation(
                     provider=settings.image_gen_provider,

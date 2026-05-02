@@ -3,7 +3,8 @@ import pytest
 
 
 @pytest.mark.unit
-def test_default_image_gen_provider():
+def test_default_image_gen_provider(monkeypatch):
+    monkeypatch.delenv("IMAGE_GEN_PROVIDER", raising=False)
     from backend.core.config import Settings
     s = Settings(_env_file=None)
     assert s.image_gen_provider == "mock"
@@ -69,7 +70,8 @@ def test_log_format_accepts_json_and_text():
 
 
 @pytest.mark.unit
-def test_missing_env_file_does_not_crash():
+def test_missing_env_file_does_not_crash(monkeypatch):
+    monkeypatch.delenv("IMAGE_GEN_PROVIDER", raising=False)
     from backend.core.config import Settings
     s = Settings(_env_file="/nonexistent/.env")
     assert s is not None

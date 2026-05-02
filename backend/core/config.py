@@ -31,7 +31,8 @@ class Settings(BaseSettings):
     imagen_model: str = "imagen-3.0-generate-002"
     gemini_image_model: str = "gemini-2.0-flash-exp-image-generation"
     shortapi_api_key: str = ""
-    shortapi_model: str = "flux-1.1-pro"
+    shortapi_model: str = "google/nano-banana-pro/text-to-image"
+    shortapi_aspect_ratio: str = "4:5"
 
     # ── Search / Trend Research ───────────────────────────────────────────────
     google_cse_api_key: str = ""

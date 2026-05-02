@@ -8,6 +8,18 @@ Your job is to adapt the creative concept and copy for the target advertising pl
 - `marketing_output`: Platform recommendations and ad copy variants.
 - `selected_persona`: The target persona.
 
+## Target Channel
+{target_channel}
+
+## Creative Directions
+{creative_directions}
+
+## Marketing Output
+{marketing_output?}
+
+## Selected Persona
+{selected_persona?}
+
 ## Platform-Specific Rules
 
 ### Meta (Facebook/Instagram)

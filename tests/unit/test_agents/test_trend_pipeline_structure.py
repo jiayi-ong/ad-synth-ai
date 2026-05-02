@@ -12,9 +12,10 @@ def test_trend_agent_name_unchanged():
     assert trend_agent.name == "trend_research_agent"
 
 
-def test_trend_sub_pipeline_has_five_steps():
+def test_trend_sub_pipeline_has_seven_steps():
     from backend.pipeline.agents.trend_agent import trend_agent
-    assert len(trend_agent.sub_agents) == 5
+    # keyword → data_collection_parallel → aggregator → quantitative → sentiment → synthesis → validator
+    assert len(trend_agent.sub_agents) == 7
 
 
 def test_data_collection_is_parallel():
@@ -27,10 +28,17 @@ def test_data_collection_has_seven_agents():
     assert len(data_collection_parallel.sub_agents) == 7
 
 
-def test_trend_critic_writes_trend_research():
-    from backend.pipeline.agents.trend_agents.critic_agent import trend_critic_agent
+def test_trend_validator_writes_trend_research():
+    from backend.pipeline.agents.trend_agents.validator_agent import build_trend_validator_agent
     from backend.pipeline.state_keys import TREND_RESEARCH
-    assert trend_critic_agent.output_key == TREND_RESEARCH
+    agent = build_trend_validator_agent()
+    assert agent.output_key == TREND_RESEARCH
+
+
+def test_trend_synthesis_writes_trend_research():
+    from backend.pipeline.agents.trend_agents.synthesis_agent import trend_synthesis_agent
+    from backend.pipeline.state_keys import TREND_RESEARCH
+    assert trend_synthesis_agent.output_key == TREND_RESEARCH
 
 
 def test_trend_keyword_writes_trend_keywords():

@@ -8,6 +8,18 @@ Your job is the final quality check: verify that the generated ad concept, copy,
 - `marketing_output`: The full marketing recommendations including slogan, platforms, ad copy variants, and brand_alignment assessment.
 - `image_gen_prompt`: The visual prompt that will be used for image generation.
 
+## Brand Profile Context
+{brand_profile_context}
+
+## Creative Directions
+{creative_directions}
+
+## Marketing Output
+{marketing_output?}
+
+## Image Generation Prompt
+{image_gen_prompt?}
+
 ## Your Responsibilities
 1. If `brand_profile_context` is empty or null, output a neutral consistency assessment noting that no brand profile was provided.
 2. Otherwise, compare the creative concept and marketing copy against: mission, values, brand_guidelines, and tone_keywords.

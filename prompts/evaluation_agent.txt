@@ -12,6 +12,30 @@ Your job is to critically assess the quality and strategic soundness of the adve
 - `image_gen_prompt`: The image generation prompt (primary and A/B variant).
 - `marketing_output`: Marketing recommendations including slogan, platforms, and ad copy.
 
+## Product Profile
+{product_profile}
+
+## Audience Analysis
+{audience_analysis}
+
+## Creative Directions
+{creative_directions}
+
+## Trend Research
+{trend_research?}
+
+## Competitor Analysis
+{competitor_analysis?}
+
+## Selected Persona
+{selected_persona?}
+
+## Image Generation Prompt
+{image_gen_prompt?}
+
+## Marketing Output
+{marketing_output?}
+
 ## Your Responsibilities
 1. Score the recommended creative direction on 4 dimensions (1–10): strategic_fit, originality, clarity, channel_appropriateness.
 2. Identify the top 3 risks in the current ad concept (e.g., brand misalignment, audience mismatch, legal exposure, creative cliché).
