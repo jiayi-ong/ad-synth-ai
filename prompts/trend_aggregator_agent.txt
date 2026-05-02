@@ -12,6 +12,27 @@ Read all of the following keys (each is a JSON object from a specialist platform
 - `web_search_trend_data`
 - `pinterest_trend_data`
 
+## YouTube Trend Data
+{youtube_trend_data?}
+
+## Twitter Trend Data
+{twitter_trend_data?}
+
+## TikTok Trend Data
+{tiktok_trend_data?}
+
+## Instagram Trend Data
+{instagram_trend_data?}
+
+## Reddit Trend Data
+{reddit_trend_data?}
+
+## Web Search Trend Data
+{web_search_trend_data?}
+
+## Pinterest Trend Data
+{pinterest_trend_data?}
+
 ## Your Responsibilities
 1. Read all 7 platform data objects. Some may have `"status": "unavailable"` — treat these as empty and note them.
 2. Collect all `trend_signals` arrays from all platforms.
@@ -34,7 +55,10 @@ Your response MUST be a valid JSON object and NOTHING ELSE.
       "description": "string",
       "platforms_seen": ["YouTube", "TikTok"],
       "cross_platform_rank": 1,
-      "evidence_snippets": ["string — brief quotes or examples from source platform data"]
+      "evidence_snippets": ["string — brief quotes or examples from source platform data"],
+      "sources": [
+        { "label": "string — 3-5 word descriptor e.g. 'TikTok #RunningShoes video'", "url": "string — source URL" }
+      ]
     }
   ],
   "top_hashtags_cross_platform": ["string"],

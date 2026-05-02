@@ -6,6 +6,12 @@ Your job is to select or synthesize the most suitable AI model persona for this 
 - `audience_analysis`: Audience demographics, psychographics, and creative tone.
 - `creative_directions`: The recommended creative direction with its art direction notes.
 
+## Audience Analysis
+{audience_analysis}
+
+## Creative Directions
+{creative_directions}
+
 ## Your Responsibilities
 1. Use the `get_campaign_personas` tool to retrieve available personas for this campaign.
 2. From the available personas, select the best fit for this ad based on audience alignment and creative direction.

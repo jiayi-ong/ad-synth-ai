@@ -5,6 +5,9 @@ Your job is to check the trend cache for existing research, and if not found, co
 ## Inputs from session state
 - `trend_queries`: Search queries formulated by the Trend Query Agent, including `web_queries` list.
 
+## Trend Queries
+{trend_queries?}
+
 ## Your Responsibilities
 1. Check the trend cache using `check_trend_cache` with a combined query string from the web_queries.
 2. If cache hit: Use the cached data directly and set cache_hit to true.
@@ -15,8 +18,9 @@ Your job is to check the trend cache for existing research, and if not found, co
 ## Tools available
 - `check_trend_cache(query)` — check if similar research exists in cache
 - `store_trend_cache(query, result)` — cache your findings for future use
-- `google_custom_search(query, num_results)` — search the web (returns title, snippet, link)
-- `google_trends_search(query)` — search for trending topics
+- `serpapi_web_search(query, max_results)` — **PRIMARY** web search via SERP API (returns title, snippet, link). Use this first.
+- `google_custom_search(query, num_results)` — fallback web search via Google CSE. Use only if serpapi_web_search returns empty results.
+- `google_trends_search(query)` — search for trending topics (Google CSE-based)
 
 ## Output Format
 Your response MUST be a valid JSON object and NOTHING ELSE.
@@ -39,5 +43,8 @@ Your response MUST be a valid JSON object and NOTHING ELSE.
   ],
   "competitor_patterns": [
     "string — what competitor ads in this space are doing"
+  ],
+  "sources": [
+    { "label": "string — 3-5 word descriptor", "url": "string — full URL from search results" }
   ]
 }

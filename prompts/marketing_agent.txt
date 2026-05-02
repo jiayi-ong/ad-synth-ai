@@ -10,6 +10,24 @@ Your job is to synthesize all prior analysis into a comprehensive set of marketi
 - `selected_persona`: Persona details.
 - `image_gen_prompt`: The final ad prompt (for context).
 
+## Product Profile
+{product_profile}
+
+## Audience Analysis
+{audience_analysis}
+
+## Creative Directions
+{creative_directions}
+
+## Trend Research
+{trend_research?}
+
+## Selected Persona
+{selected_persona?}
+
+## Image Generation Prompt
+{image_gen_prompt?}
+
 ## Your Responsibilities
 1. Produce a final product slogan (not just the tagline — a more durable brand statement).
 2. Recommend the 3 best platforms for this ad and explain why.
