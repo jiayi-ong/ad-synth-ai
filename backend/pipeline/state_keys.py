@@ -38,6 +38,8 @@ REDDIT_TREND_DATA     = "reddit_trend_data"
 WEB_SEARCH_TREND_DATA = "web_search_trend_data"
 PINTEREST_TREND_DATA  = "pinterest_trend_data"
 AGGREGATED_TREND_DATA = "aggregated_trend_data"
+QUANTITATIVE_INSIGHTS = "quantitative_insights"   # numeric analysis + charts
+SENTIMENT_INSIGHTS    = "sentiment_insights"       # per-source sentiment breakdown
 
 # ── Cross-agent signals ───────────────────────────────────────────────────────
 MISMATCH_FLAGS = "mismatch_flags"
