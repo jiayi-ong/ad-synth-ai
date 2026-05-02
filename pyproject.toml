@@ -23,6 +23,9 @@ dependencies = [
   "sqlite-vec>=0.1",
   "tenacity>=8.3",
   "python-dotenv>=1.0",
+  "pandas",
+  "matplotlib",
+  "numpy",
 ]
 
 [dependency-groups]

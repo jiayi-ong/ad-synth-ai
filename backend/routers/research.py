@@ -17,8 +17,10 @@ from backend.pipeline.agents.trend_pipeline import build_trend_research_pipeline
 from backend.pipeline.standalone_runner import build_pipeline_runner
 from backend.pipeline.state_keys import (
     COMPETITOR_ANALYSIS,
+    QUANTITATIVE_INSIGHTS,
     RAW_MARKETING_BRIEF,
     RAW_PRODUCT_DESCRIPTION,
+    SENTIMENT_INSIGHTS,
     TREND_RESEARCH,
 )
 from backend.schemas.research import ResearchRequest
@@ -93,8 +95,12 @@ async def run_research(
             )
 
             _key_map = {
-                "trend_synthesis_agent": TREND_RESEARCH,
+                "quantitative_analysis_agent": QUANTITATIVE_INSIGHTS,
+                "sentiment_analysis_agent": SENTIMENT_INSIGHTS,
+                "trend_validator_agent": TREND_RESEARCH,
                 "competitor_agent": COMPETITOR_ANALYSIS,
+                # Legacy: emit event if old synthesis agent fires (no validator yet)
+                "trend_synthesis_agent": TREND_RESEARCH,
             }
 
             async for event in runner.run_async(

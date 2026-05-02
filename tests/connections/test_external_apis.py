@@ -117,3 +117,52 @@ def test_twitter_search_returns_tweets():
     count = len(data.get("data", []))
     print(f"\n  Twitter: {count} tweet(s) returned")
     print("  Status: TWITTER API CONNECTED ✓")
+
+
+# ── ShortAPI image generation ─────────────────────────────────────────────────
+
+@pytest.mark.skipif(
+    not os.environ.get("SHORTAPI_API_KEY"),
+    reason="SHORTAPI_API_KEY not set",
+)
+def test_shortapi_connectivity():
+    """Live call to ShortAPI — creates a job, polls until done, verifies image URL."""
+    import httpx, time
+    api_key = os.environ["SHORTAPI_API_KEY"]
+    model = os.environ.get("SHORTAPI_MODEL", "google/nano-banana-pro/text-to-image")
+    base = "https://api.shortapi.ai/api/v1"
+    headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
+
+    r = httpx.post(
+        f"{base}/job/create",
+        headers=headers,
+        json={"model": model, "args": {"prompt": "a simple red circle on white background", "aspect_ratio": "1:1"}},
+        timeout=30,
+    )
+    assert r.status_code == 200, f"ShortAPI create returned {r.status_code}: {r.text[:300]}"
+    data = r.json()
+    assert data.get("code") == 0, f"ShortAPI create error: {data}"
+    job_id = data["data"]["job_id"]
+    print(f"\n  ShortAPI: job_id={job_id}")
+
+    for _ in range(40):
+        time.sleep(3)
+        poll = httpx.get(
+            f"{base}/job/query",
+            params={"id": job_id},
+            headers={"Authorization": f"Bearer {api_key}"},
+            timeout=30,
+        )
+        poll.raise_for_status()
+        result = poll.json()
+        status = result["data"].get("status")
+        if status == 2:
+            url = result["data"]["result"]["images"][0]["url"]
+            assert url, f"ShortAPI returned empty image URL"
+            print(f"  ShortAPI: image URL = {url[:80]}...")
+            print("  Status: SHORTAPI CONNECTED ✓")
+            return
+        if status not in (0, 1):
+            pytest.fail(f"ShortAPI job failed status={status}: {result}")
+
+    pytest.fail(f"ShortAPI job timed out (job_id={job_id})")
