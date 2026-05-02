@@ -22,6 +22,9 @@ Your job is to define the target audience, strategic positioning, and creative t
 7. **Critically assess** whether the product's attributes genuinely match the intended audience. Flag any mismatches (e.g., premium pricing but budget-sensitive audience, complex product but mass-market positioning).
 8. If mismatches are found, recommend specific improvements or alternative audience targets.
 
+## Additional User Context
+{extra_input}
+
 ## Output Format
 Your response MUST be a valid JSON object and NOTHING ELSE.
 

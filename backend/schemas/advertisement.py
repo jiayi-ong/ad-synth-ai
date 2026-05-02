@@ -23,6 +23,13 @@ class GenerationRequest(BaseModel):
 
 class ABVariantRequest(BaseModel):
     advertisement_id: str
+    custom_prompt: str | None = None
+
+
+class RerunStageRequest(BaseModel):
+    stage_key: str
+    extra_input: str | None = None
+    rerun_downstream: bool = True
 
 
 class AdvertisementRead(BaseModel):
@@ -42,6 +49,7 @@ class AdvertisementRead(BaseModel):
     channel_adaptation_output: dict[str, Any] | None = None
     brand_consistency_score: float | None = None
     brand_profile_id: str | None = None
+    pipeline_state_history: dict[str, list[Any]] | None = None
     created_at: datetime
 
     model_config = {"from_attributes": True}

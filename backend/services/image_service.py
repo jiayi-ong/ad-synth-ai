@@ -24,18 +24,33 @@ class GeneratedVideo:
 
 class ImageGenProvider(ABC):
     @abstractmethod
-    async def generate(self, prompt: str, reference_image_paths: list[str]) -> GeneratedImage:
-        """Generate an image from a prompt. Returns a GeneratedImage with a URL."""
+    async def generate(
+        self,
+        prompt: str,
+        reference_image_paths: list[str],
+        reference_image_url: str | None = None,
+    ) -> GeneratedImage:
+        """Generate an image from a prompt. reference_image_url enables img2img editing."""
 
 
 class MockImageGenProvider(ImageGenProvider):
-    async def generate(self, prompt: str, reference_image_paths: list[str]) -> GeneratedImage:
+    async def generate(
+        self,
+        prompt: str,
+        reference_image_paths: list[str],
+        reference_image_url: str | None = None,
+    ) -> GeneratedImage:
         logger.info("MockImageGenProvider.generate() called (no real image generated)")
-        return GeneratedImage(url="https://placehold.co/800x1000/1a1a24/7c6cf5?text=Ad+Preview")
+        return GeneratedImage(url="https://placehold.co/800x1000/f5f5f5/e84b2f?text=Ad+Preview")
 
 
 class VertexAIImagenProvider(ImageGenProvider):
-    async def generate(self, prompt: str, reference_image_paths: list[str]) -> GeneratedImage:
+    async def generate(
+        self,
+        prompt: str,
+        reference_image_paths: list[str],
+        reference_image_url: str | None = None,
+    ) -> GeneratedImage:
         from google import genai
         from google.genai import types
         from backend.core.config import settings
@@ -66,9 +81,18 @@ class GeminiImageProvider(ImageGenProvider):
 
     Model: configurable via GEMINI_IMAGE_MODEL env var.
     Default: gemini-2.0-flash-exp-image-generation
+
+    When reference_image_url is provided (img2img), the reference image is sent
+    as an inline image part alongside the text prompt for guided editing.
     """
 
-    async def generate(self, prompt: str, reference_image_paths: list[str]) -> GeneratedImage:
+    async def generate(
+        self,
+        prompt: str,
+        reference_image_paths: list[str],
+        reference_image_url: str | None = None,
+    ) -> GeneratedImage:
+        import httpx
         from google import genai
         from google.genai import types
         from backend.core.config import settings
@@ -82,9 +106,29 @@ class GeminiImageProvider(ImageGenProvider):
         else:
             client = genai.Client(api_key=settings.google_api_key)
 
+        # Build contents: optionally prepend reference image for img2img editing
+        contents: list = []
+        if reference_image_url:
+            if reference_image_url.startswith("data:"):
+                # Inline data URL — decode the base64 bytes directly
+                header, b64_data = reference_image_url.split(",", 1)
+                mime = header.split(":")[1].split(";")[0]
+                img_bytes = base64.b64decode(b64_data)
+            else:
+                # Remote URL — fetch the image bytes
+                async with httpx.AsyncClient(timeout=20) as http:
+                    resp = await http.get(reference_image_url)
+                    resp.raise_for_status()
+                    img_bytes = resp.content
+                    mime = resp.headers.get("content-type", "image/png").split(";")[0]
+            contents.append(types.Part(inline_data=types.Blob(data=img_bytes, mime_type=mime)))
+            contents.append(types.Part(text=prompt))
+        else:
+            contents = prompt
+
         response = client.models.generate_content(
             model=settings.gemini_image_model,
-            contents=prompt,
+            contents=contents,
             config=types.GenerateContentConfig(
                 response_modalities=["IMAGE", "TEXT"],
             ),
@@ -113,7 +157,12 @@ class ShortAPIProvider(ImageGenProvider):
     _POLL_INTERVAL_S = 3
     _POLL_MAX_RETRIES = 40  # 120 s total
 
-    async def generate(self, prompt: str, reference_image_paths: list[str]) -> GeneratedImage:
+    async def generate(
+        self,
+        prompt: str,
+        reference_image_paths: list[str],
+        reference_image_url: str | None = None,
+    ) -> GeneratedImage:
         import asyncio
         import httpx
         from backend.core.config import settings

@@ -34,6 +34,9 @@ Your job is the final quality check: verify that the generated ad concept, copy,
 - **Mission fit**: Does this ad support the brand's mission statement?
 - **Visual alignment**: Does the image prompt match the brand's visual identity?
 
+## Additional User Context
+{extra_input}
+
 ## Output Format
 Your response MUST be a valid JSON object and NOTHING ELSE.
 

@@ -35,6 +35,9 @@ Your job is to synthesize the product analysis, audience strategy, and trend res
 - Before-and-After Problem Solver: Contrast showing the transformation the product enables
 - Minimalist Editorial: Clean, luxury, product-only with typographic elements
 
+## Additional User Context
+{extra_input}
+
 ## Output Format
 Your response MUST be a valid JSON object and NOTHING ELSE.
 

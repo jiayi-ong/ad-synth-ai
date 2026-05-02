@@ -89,6 +89,11 @@ export const api = {
   // Advertisements
   getAdvertisements: (cid) => request("GET", `/campaigns/${cid}/advertisements`),
   getAdvertisement: (cid, aid) => request("GET", `/campaigns/${cid}/advertisements/${aid}`),
+  deleteAdvertisement: (cid, aid) => request("DELETE", `/campaigns/${cid}/advertisements/${aid}`),
+  cancelGeneration: (adId) => request("POST", `/generate/${adId}/cancel`, {}),
+  rerunStage: (adId, stageKey, extraInput, rerunDownstream) =>
+    request("POST", `/generate/${adId}/rerun-stage`, { stage_key: stageKey, extra_input: extraInput || null, rerun_downstream: rerunDownstream }),
+  retryImage: (adId) => request("POST", `/generate/${adId}/retry-image`, {}),
 
   // Brands
   getBrands: () => request("GET", "/brands"),

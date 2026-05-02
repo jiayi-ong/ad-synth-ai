@@ -22,6 +22,9 @@ Your job is to select or synthesize the most suitable AI model persona for this 
 ## Tools available
 - `get_campaign_personas()` — returns a list of available personas for this campaign
 
+## Additional User Context
+{extra_input}
+
 ## Output Format
 Your response MUST be a valid JSON object and NOTHING ELSE.
 

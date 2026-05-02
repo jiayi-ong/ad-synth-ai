@@ -43,6 +43,29 @@ async def update_pipeline_state(ad: Advertisement, key: str, value: Any, db: Asy
     await db.commit()
 
 
+async def snapshot_stage_to_history(ad: Advertisement, key: str, db: AsyncSession) -> None:
+    """Save the current value of a state key into version history before overwriting."""
+    state = json.loads(ad.pipeline_state or "{}")
+    if key not in state:
+        return
+    history = json.loads(ad.pipeline_state_history or "{}")
+    versions = history.get(key, [])
+    versions.append(state[key])
+    history[key] = versions
+    ad.pipeline_state_history = json.dumps(history)
+    await db.commit()
+
+
+async def clear_downstream_state(ad: Advertisement, from_key: str, downstream_map: dict[str, list[str]], db: AsyncSession) -> None:
+    """Clear state keys downstream of from_key (inclusive) from pipeline_state."""
+    keys_to_clear = downstream_map.get(from_key, [])
+    state = json.loads(ad.pipeline_state or "{}")
+    for k in keys_to_clear:
+        state.pop(k, None)
+    ad.pipeline_state = json.dumps(state)
+    await db.commit()
+
+
 async def set_ad_status(ad: Advertisement, new_status: str, db: AsyncSession) -> None:
     ad.status = new_status
     await db.commit()
@@ -66,6 +89,7 @@ def _to_schema(ad: Advertisement) -> AdvertisementRead:
         channel_adaptation_output=json.loads(ad.channel_adaptation_output) if ad.channel_adaptation_output else None,
         brand_consistency_score=ad.brand_consistency_score,
         brand_profile_id=ad.brand_profile_id,
+        pipeline_state_history=json.loads(ad.pipeline_state_history) if ad.pipeline_state_history else None,
         created_at=ad.created_at,
     )
 

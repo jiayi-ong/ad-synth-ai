@@ -1,10 +1,11 @@
+import asyncio
 import json
 import logging
 import time
 import uuid
 from typing import Annotated, AsyncGenerator
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from google.adk.runners import Runner
 from google.genai import types
@@ -26,8 +27,10 @@ from backend.pipeline.state_keys import (
     CHANNEL_ADAPTATION,
     COMPETITOR_ANALYSIS,
     CREATIVE_DIRECTIONS,
+    DOWNSTREAM_KEYS,
     EVALUATION_OUTPUT,
     EXCLUDED_PERSONA_IDS,
+    EXTRA_INPUT,
     IMAGE_GEN_PROMPT,
     MARKETING_OUTPUT,
     PIPELINE_ERROR,
@@ -39,9 +42,12 @@ from backend.pipeline.state_keys import (
     TREND_RESEARCH,
 )
 from backend.pipeline.pipeline_logger import PipelineLogger
-from backend.schemas.advertisement import ABVariantRequest, GenerationRequest
+from backend.schemas.advertisement import ABVariantRequest, GenerationRequest, RerunStageRequest
 from backend.services import advertisement_service
 from backend.services.image_service import create_image_provider
+
+# Module-level cancellation flags keyed by advertisement_id
+_cancellation_flags: dict[str, asyncio.Event] = {}
 
 logger = logging.getLogger(__name__)
 
@@ -149,6 +155,10 @@ async def generate_ad(
         pl = PipelineLogger(str(ad_id))
         await advertisement_service.set_ad_status(ad, "running", db)
 
+        # Register cancellation flag for this run
+        cancel_evt = asyncio.Event()
+        _cancellation_flags[ad_id] = cancel_evt
+
         # Store channel on the ad record
         if request.target_channel:
             ad.target_channel = request.target_channel
@@ -201,6 +211,7 @@ async def generate_ad(
             EXCLUDED_PERSONA_IDS: request.excluded_persona_ids,
             BRAND_PROFILE_CONTEXT: brand_profile_context,
             TARGET_CHANNEL: request.target_channel or "",
+            EXTRA_INPUT: "",  # always present so prompts with {extra_input} don't raise KeyError
         }
 
         # Log all user inputs at pipeline start for observability / debugging
@@ -284,6 +295,9 @@ async def generate_ad(
                         session_id=session_id,
                     )
                     raw_output = current_session.state.get(state_key, "")
+                    # ADK may store state values as native dicts; normalize to string for downstream processing
+                    if isinstance(raw_output, dict):
+                        raw_output = json.dumps(raw_output)
                     logger.debug(
                         "agent_output_raw ad=%s agent=%s key=%s len=%d preview=%r",
                         ad_id, agent_name, state_key, len(raw_output or ""), (raw_output or "")[:300],
@@ -375,11 +389,20 @@ async def generate_ad(
                         "advertisement_id": ad_id,
                     })
 
+                    # Check for cancellation after each agent completes
+                    if cancel_evt.is_set():
+                        await advertisement_service.set_ad_status(ad, "partial_failure", db)
+                        yield _sse("cancelled", {"advertisement_id": ad_id})
+                        _cancellation_flags.pop(ad_id, None)
+                        return
+
         except Exception as e:
             logger.exception("Pipeline error for ad %s: %s", ad_id, e)
             await advertisement_service.set_ad_status(ad, "partial_failure", db)
             await advertisement_service.update_pipeline_state(ad, PIPELINE_ERROR, {"message": str(e)}, db)
             yield _sse("error", {"agent": "pipeline", "data": {"message": str(e)}})
+        finally:
+            _cancellation_flags.pop(ad_id, None)
 
         # 6. Trigger image generation
         logger.info(
@@ -477,21 +500,305 @@ async def generate_ab_variant(
 
     ad = await db.scalar(select(Advertisement).where(Advertisement.id == request.advertisement_id))
     if not ad:
-        from fastapi import HTTPException
         raise HTTPException(status_code=404, detail="Advertisement not found")
 
     campaign = await db.scalar(select(Campaign).where(Campaign.id == ad.campaign_id))
     if not campaign or campaign.user_id != current_user.id:
-        from fastapi import HTTPException
         raise HTTPException(status_code=403, detail="Forbidden")
 
-    if not ad.ab_variant_prompt:
-        from fastapi import HTTPException
+    if not ad.ab_variant_prompt and not request.custom_prompt:
         raise HTTPException(status_code=400, detail="No A/B variant prompt available for this advertisement")
 
     image_provider = create_image_provider()
-    generated = await image_provider.generate(ad.ab_variant_prompt, [])
+
+    if request.custom_prompt:
+        # Build composite prompt: prepend original description as context so text-only
+        # providers (e.g. ShortAPI) still have enough information to produce a coherent result.
+        base_context = f"Original ad description:\n{ad.ab_variant_prompt}\n\n" if ad.ab_variant_prompt else ""
+        final_prompt = (
+            f"{base_context}"
+            f"Modifications to apply: {request.custom_prompt.strip()}\n"
+            "Make these changes while keeping all else the same."
+        )
+        generated = await image_provider.generate(final_prompt, [], reference_image_url=ad.image_url)
+    else:
+        generated = await image_provider.generate(ad.ab_variant_prompt, [])
+
     ad.ab_variant_url = generated.url
     await db.commit()
 
     return {"ab_variant_url": generated.url, "advertisement_id": ad.id}
+
+
+@router.post("/{ad_id}/retry-image")
+async def retry_image_generation(
+    ad_id: str,
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Re-run image generation for an ad whose image failed or is missing."""
+    from sqlalchemy import select
+    from backend.models.campaign import Campaign
+
+    ad = await db.scalar(select(Advertisement).where(Advertisement.id == ad_id))
+    if not ad:
+        raise HTTPException(status_code=404, detail="Advertisement not found")
+    campaign = await db.scalar(select(Campaign).where(Campaign.id == ad.campaign_id))
+    if not campaign or campaign.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Forbidden")
+    if not ad.image_gen_prompt:
+        raise HTTPException(status_code=400, detail="No image generation prompt available for this ad")
+
+    image_provider = create_image_provider()
+    generated = await image_provider.generate(ad.image_gen_prompt, [])
+    ad.image_url = generated.url
+    await db.commit()
+    return {"image_url": generated.url, "advertisement_id": ad.id}
+
+
+@router.post("/{ad_id}/cancel")
+async def cancel_generation(
+    ad_id: str,
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Signal cancellation for an in-progress pipeline run."""
+    from sqlalchemy import select
+    from backend.models.campaign import Campaign
+
+    ad = await db.scalar(select(Advertisement).where(Advertisement.id == ad_id))
+    if not ad:
+        raise HTTPException(status_code=404, detail="Advertisement not found")
+    campaign = await db.scalar(select(Campaign).where(Campaign.id == ad.campaign_id))
+    if not campaign or campaign.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Forbidden")
+
+    flag = _cancellation_flags.get(ad_id)
+    if flag:
+        flag.set()
+        return {"status": "cancellation_requested", "advertisement_id": ad_id}
+    return {"status": "not_running", "advertisement_id": ad_id}
+
+
+@router.post("/{ad_id}/rerun-stage")
+async def rerun_stage(
+    ad_id: str,
+    request: RerunStageRequest,
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Re-run a single pipeline stage (and optionally all downstream stages).
+
+    Snapshots the current output to history, clears downstream state keys,
+    optionally injects extra_input into session state, then re-runs the pipeline
+    from the target stage forward, streaming SSE events.
+    """
+    from sqlalchemy import select
+    from backend.models.campaign import Campaign
+    from backend.models.product import Product
+
+    ad = await db.scalar(select(Advertisement).where(Advertisement.id == ad_id))
+    if not ad:
+        raise HTTPException(status_code=404, detail="Advertisement not found")
+    campaign = await db.scalar(select(Campaign).where(Campaign.id == ad.campaign_id))
+    if not campaign or campaign.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Forbidden")
+
+    stage_key = request.stage_key
+    if stage_key not in DOWNSTREAM_KEYS:
+        raise HTTPException(status_code=400, detail=f"Unknown stage key: {stage_key}")
+
+    async def rerun_stream() -> AsyncGenerator[str, None]:
+        pipeline_start = time.monotonic()
+        agent_telemetry: list[dict] = []
+
+        # Snapshot current state to history before clearing
+        await advertisement_service.snapshot_stage_to_history(ad, stage_key, db)
+
+        # Clear downstream keys from pipeline_state
+        await advertisement_service.clear_downstream_state(ad, stage_key, DOWNSTREAM_KEYS, db)
+
+        # Load saved session state as starting point for re-run
+        existing_state = json.loads(ad.pipeline_state or "{}")
+
+        # Reconstruct original input keys that are NOT stored in pipeline_state
+        # (pipeline_state only stores agent outputs, not the user-provided inputs)
+        from backend.models.brand_profile import BrandProfile
+        product = await db.scalar(select(Product).where(Product.id == ad.product_id))
+        if product:
+            desc_text = (product.description or "").strip()
+            product_desc = f"{product.name}\n{desc_text}" if desc_text else product.name
+            existing_state.setdefault(RAW_PRODUCT_DESCRIPTION, product_desc)
+        else:
+            existing_state.setdefault(RAW_PRODUCT_DESCRIPTION, "")
+        existing_state.setdefault(RAW_MARKETING_BRIEF, "")
+        existing_state.setdefault(CAMPAIGN_ID, ad.campaign_id)
+        existing_state.setdefault(TARGET_CHANNEL, ad.target_channel or "")
+        existing_state.setdefault(EXCLUDED_PERSONA_IDS, [])
+        existing_state.setdefault(BRAND_PROFILE_CONTEXT, "")
+        if ad.brand_profile_id:
+            brand = await db.scalar(
+                select(BrandProfile).where(BrandProfile.id == ad.brand_profile_id)
+            )
+            if brand:
+                existing_state[BRAND_PROFILE_CONTEXT] = json.dumps({
+                    "name": brand.name,
+                    "company": brand.company,
+                    "mission": brand.mission,
+                    "values": brand.values,
+                    "brand_guidelines": brand.brand_guidelines,
+                    "tone_keywords": brand.tone_keywords,
+                })
+
+        # Remove all DOWNSTREAM_KEYS entries from existing_state so they are re-computed
+        for k in DOWNSTREAM_KEYS.get(stage_key, []):
+            existing_state.pop(k, None)
+
+        # Always ensure extra_input is present; override if caller provided one
+        existing_state.setdefault(EXTRA_INPUT, "")
+        if request.extra_input:
+            existing_state[EXTRA_INPUT] = request.extra_input
+
+        await advertisement_service.set_ad_status(ad, "running", db)
+        yield _sse("started", {"advertisement_id": ad_id, "rerun": True, "stage_key": stage_key})
+
+        cancel_evt = asyncio.Event()
+        _cancellation_flags[ad_id] = cancel_evt
+
+        try:
+            runner = runner_module.get_runner()
+            session_id = f"rerun_{ad_id}_{stage_key}_{int(time.monotonic() * 1000)}"
+            await runner.session_service.create_session(
+                app_name="ad_synth_ai",
+                user_id=current_user.id,
+                session_id=session_id,
+                state=existing_state,
+            )
+
+            agent_start_times: dict[str, float] = {}
+            progress = 0
+
+            async for event in runner.run_async(
+                user_id=current_user.id,
+                session_id=session_id,
+                new_message=types.Content(
+                    role="user",
+                    parts=[types.Part(text="Re-run the pipeline stage and all downstream stages.")],
+                ),
+            ):
+                if hasattr(event, "author") and event.author and event.author not in agent_start_times:
+                    agent_start_times[event.author] = time.monotonic()
+                    if event.author in _AGENT_KEY_MAP:
+                        yield _sse("agent_start", {"agent": _AGENT_KEY_MAP[event.author]})
+
+                if event.is_final_response() and event.author in _AGENT_KEY_MAP:
+                    agent_name = event.author
+                    state_key = _AGENT_KEY_MAP[agent_name]
+                    progress += 1
+                    end_time = time.monotonic()
+                    start_time = agent_start_times.get(agent_name, end_time)
+
+                    input_tokens = output_tokens = 0
+                    if hasattr(event, "usage_metadata") and event.usage_metadata:
+                        input_tokens = getattr(event.usage_metadata, "prompt_token_count", 0) or 0
+                        output_tokens = getattr(event.usage_metadata, "candidates_token_count", 0) or 0
+                    cost = (input_tokens / 1e6 * _INPUT_COST_PER_M) + (output_tokens / 1e6 * _OUTPUT_COST_PER_M)
+                    telemetry_entry = {
+                        "agent": agent_name,
+                        "latency_ms": round((end_time - start_time) * 1000, 1),
+                        "input_tokens": input_tokens,
+                        "output_tokens": output_tokens,
+                        "cost_usd": round(cost, 6),
+                    }
+                    agent_telemetry.append(telemetry_entry)
+
+                    current_session = await runner.session_service.get_session(
+                        app_name="ad_synth_ai",
+                        user_id=current_user.id,
+                        session_id=session_id,
+                    )
+                    raw_output = current_session.state.get(state_key, "")
+                    if isinstance(raw_output, dict):
+                        raw_output = json.dumps(raw_output)
+                    parsed = _parse_json_output(raw_output)
+
+                    # Snapshot previous value to history before overwriting
+                    await advertisement_service.snapshot_stage_to_history(ad, state_key, db)
+                    await advertisement_service.update_pipeline_state(ad, state_key, parsed, db)
+
+                    # Persist dedicated columns
+                    if state_key == IMAGE_GEN_PROMPT and isinstance(parsed, dict):
+                        if parsed.get("image_gen_prompt"):
+                            ad.image_gen_prompt = parsed["image_gen_prompt"]
+                        if parsed.get("ab_variant_prompt"):
+                            ad.ab_variant_prompt = parsed["ab_variant_prompt"]
+                        await db.commit()
+                    if state_key == MARKETING_OUTPUT and isinstance(parsed, dict):
+                        ad.marketing_output = json.dumps(parsed)
+                        await db.commit()
+                    if state_key == EVALUATION_OUTPUT and isinstance(parsed, dict):
+                        ad.evaluation_output = json.dumps(parsed)
+                        await db.commit()
+                    if state_key == CHANNEL_ADAPTATION and isinstance(parsed, dict):
+                        ad.channel_adaptation_output = json.dumps(parsed)
+                        await db.commit()
+                    if state_key == BRAND_CONSISTENCY and isinstance(parsed, dict):
+                        score = parsed.get("consistency_score")
+                        if isinstance(score, (int, float)):
+                            ad.brand_consistency_score = float(score)
+                        await db.commit()
+
+                    yield _sse("agent_complete", {
+                        "agent": state_key,
+                        "data": parsed,
+                        "progress": progress,
+                        "total": len(DOWNSTREAM_KEYS.get(request.stage_key, [])),
+                        "advertisement_id": ad_id,
+                    })
+
+                    if cancel_evt.is_set():
+                        await advertisement_service.set_ad_status(ad, "partial_failure", db)
+                        yield _sse("cancelled", {"advertisement_id": ad_id})
+                        _cancellation_flags.pop(ad_id, None)
+                        return
+
+        except Exception as e:
+            logger.exception("Re-run error for ad %s stage %s: %s", ad_id, stage_key, e)
+            await advertisement_service.set_ad_status(ad, "partial_failure", db)
+            yield _sse("error", {"agent": "pipeline", "data": {"message": str(e)}})
+        finally:
+            _cancellation_flags.pop(ad_id, None)
+
+        # Trigger image re-generation if image_gen_prompt was affected
+        if IMAGE_GEN_PROMPT in DOWNSTREAM_KEYS.get(request.stage_key, []) and ad.image_gen_prompt:
+            try:
+                yield _sse("image_generating", {"advertisement_id": ad_id})
+                product = await db.scalar(select(Product).where(Product.id == ad.product_id))
+                image_paths = [product.image_path] if product and product.image_path else []
+                image_provider = create_image_provider()
+                generated = await image_provider.generate(ad.image_gen_prompt, image_paths)
+                ad.image_url = generated.url
+                if ad.ab_variant_prompt:
+                    ab_gen = await image_provider.generate(ad.ab_variant_prompt, image_paths)
+                    ad.ab_variant_url = ab_gen.url
+                await db.commit()
+                yield _sse("image_ready", {
+                    "data": {"url": generated.url, "variant_url": ad.ab_variant_url},
+                    "advertisement_id": ad_id,
+                })
+            except Exception as e:
+                logger.exception("Re-run image generation failed for ad %s: %s", ad_id, e)
+                yield _sse("error", {"agent": "image_generation", "data": {"message": str(e)}})
+
+        total_cost = sum(t["cost_usd"] for t in agent_telemetry)
+        total_latency = round((time.monotonic() - pipeline_start) * 1000, 1)
+        final_status = "completed" if ad.status != "partial_failure" else "partial_failure"
+        await advertisement_service.set_ad_status(ad, final_status, db)
+        yield _sse("done", {"advertisement_id": ad_id, "status": final_status, "rerun": True})
+        yield _sse("cost_summary", {
+            "total_cost_usd": round(total_cost, 6),
+            "total_latency_ms": total_latency,
+            "per_agent": agent_telemetry,
+        })
+
+    return StreamingResponse(rerun_stream(), media_type="text/event-stream")

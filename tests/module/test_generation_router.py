@@ -41,7 +41,7 @@ def _make_mock_runner(pipeline_state: dict):
     agent_map = {
         "product_understanding_agent": PRODUCT_PROFILE,
         "audience_positioning_agent": AUDIENCE_ANALYSIS,
-        "trend_synthesis_agent": TREND_RESEARCH,
+        "trend_validator_agent": TREND_RESEARCH,
         "competitor_agent": COMPETITOR_ANALYSIS,
         "creative_strategy_agent": CREATIVE_DIRECTIONS,
         "persona_agent": SELECTED_PERSONA,
@@ -133,12 +133,18 @@ def test_all_agent_complete_events_present(client, auth_headers, campaign, produ
 @pytest.mark.module
 def test_ab_variant_endpoint_returns_url(client, auth_headers, campaign, product):
     mock_runner = _make_mock_runner(SAMPLE_PIPELINE_STATE)
+    mock_image_result = MagicMock()
+    mock_image_result.url = "https://example.com/ab_variant.png"
+    mock_provider = AsyncMock()
+    mock_provider.generate = AsyncMock(return_value=mock_image_result)
+
     with patch("backend.routers.generation.runner_module.get_runner", return_value=mock_runner):
-        gen_r = client.post(
-            "/generate",
-            json={"campaign_id": campaign["id"], "product_id": product["id"]},
-            headers=auth_headers,
-        )
+        with patch("backend.routers.generation.create_image_provider", return_value=mock_provider):
+            gen_r = client.post(
+                "/generate",
+                json={"campaign_id": campaign["id"], "product_id": product["id"]},
+                headers=auth_headers,
+            )
 
     events = []
     for line in gen_r.text.split("\n"):
@@ -149,11 +155,12 @@ def test_ab_variant_endpoint_returns_url(client, auth_headers, campaign, product
     assert done_event is not None
     ad_id = done_event["advertisement_id"]
 
-    r = client.post(
-        "/generate/ab-variant",
-        json={"advertisement_id": ad_id},
-        headers=auth_headers,
-    )
+    with patch("backend.routers.generation.create_image_provider", return_value=mock_provider):
+        r = client.post(
+            "/generate/ab-variant",
+            json={"advertisement_id": ad_id},
+            headers=auth_headers,
+        )
     assert r.status_code == 200
     assert "ab_variant_url" in r.json()
     assert r.json()["ab_variant_url"] is not None
