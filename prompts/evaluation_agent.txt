@@ -50,6 +50,9 @@ Your job is to critically assess the quality and strategic soundness of the adve
 - **clarity (1–10)**: Is the value proposition immediately clear within 3 seconds?
 - **channel_appropriateness (1–10)**: Is the format/style suited to where this audience actually is?
 
+## Additional User Context
+{extra_input}
+
 ## Output Format
 Your response MUST be a valid JSON object and NOTHING ELSE.
 

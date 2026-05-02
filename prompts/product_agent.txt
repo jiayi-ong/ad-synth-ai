@@ -30,6 +30,9 @@ You must anchor entirely on what the text LITERALLY says. Never reclassify the p
 7. Assess the product's quality tier (budget / mid-range / premium / luxury).
 8. Infer the likely competitive landscape (2–3 competitor archetypes) relevant to the literal product.
 
+## Additional User Context
+{extra_input}
+
 ## Output Format
 Your response MUST be a valid JSON object and NOTHING ELSE. No markdown, no explanation outside the JSON.
 

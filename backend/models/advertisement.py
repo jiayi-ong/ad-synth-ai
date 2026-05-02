@@ -36,3 +36,5 @@ class Advertisement(Base):
     text_variants: Mapped[str | None] = mapped_column(Text)
     # Video generation (extensibility scaffold)
     video_url: Mapped[str | None] = mapped_column(String)
+    # JSON dict keyed by state_key → list of prior outputs (for version history per stage)
+    pipeline_state_history: Mapped[str | None] = mapped_column(Text)

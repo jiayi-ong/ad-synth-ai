@@ -39,6 +39,9 @@ Your job is to synthesize all prior analysis into a comprehensive set of marketi
 8. Identify legal/compliance risks (unsubstantiated claims, regulatory concerns, audience sensitivities).
 9. Summarize improvement recommendations (incorporating any mismatch flags from audience analysis).
 
+## Additional User Context
+{extra_input}
+
 ## Output Format
 Your response MUST be a valid JSON object and NOTHING ELSE.
 

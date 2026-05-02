@@ -58,6 +58,9 @@ Your job is to adapt the creative concept and copy for the target advertising pl
 4. Note any creative style adjustments needed (e.g., lo-fi for TikTok, cinematic for YouTube).
 5. If target_channel is null, output platform-agnostic defaults.
 
+## Additional User Context
+{extra_input}
+
 ## Output Format
 Your response MUST be a valid JSON object and NOTHING ELSE.
 

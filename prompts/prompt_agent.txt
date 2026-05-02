@@ -80,6 +80,9 @@ List of things to avoid (anatomy errors, cluttered backgrounds, unreadable text,
 ## A/B Variant
 The variant prompt should be identical to the primary except for ONE changed element. Clearly state what changed in `ab_change_description`.
 
+## Additional User Context
+{extra_input}
+
 ## Output Format
 Your response MUST be a valid JSON object and NOTHING ELSE.
 
