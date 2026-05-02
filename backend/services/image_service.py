@@ -102,44 +102,77 @@ class GeminiImageProvider(ImageGenProvider):
 
 class ShortAPIProvider(ImageGenProvider):
     """
-    Aggregated image generation via ShortAPI.io.
-    Supports Stable Diffusion, DALL-E, Flux, and other models through a single endpoint.
-    Works anywhere with SHORTAPI_API_KEY set.
+    Async job-based image generation via ShortAPI.ai.
+    Flow: POST /job/create → poll GET /job/query?id={job_id} until status==2.
+    Model switching: set SHORTAPI_MODEL to any ShortAPI model ID, e.g.:
+      google/nano-banana-pro/text-to-image
+      bytedance/seedream-5.0/text-to-image
     """
 
+    _BASE = "https://api.shortapi.ai/api/v1"
+    _POLL_INTERVAL_S = 3
+    _POLL_MAX_RETRIES = 40  # 120 s total
+
     async def generate(self, prompt: str, reference_image_paths: list[str]) -> GeneratedImage:
+        import asyncio
         import httpx
         from backend.core.config import settings
 
         if not settings.shortapi_api_key:
             raise RuntimeError("SHORTAPI_API_KEY is not configured")
 
-        async with httpx.AsyncClient(timeout=120) as client:
-            resp = await client.post(
-                "https://api.shortapi.io/v1/images/generate",
-                headers={
-                    "Authorization": f"Bearer {settings.shortapi_api_key}",
-                    "Content-Type": "application/json",
-                },
-                json={
-                    "prompt": prompt,
-                    "model": settings.shortapi_model,
-                    "width": 800,
-                    "height": 1000,
-                },
-            )
-            resp.raise_for_status()
-            data = resp.json()
+        model = settings.shortapi_model
+        aspect_ratio = settings.shortapi_aspect_ratio
+        auth_header = {"Authorization": f"Bearer {settings.shortapi_api_key}"}
 
-        # Handle common response envelope shapes across providers
-        url = (
-            data.get("url")
-            or data.get("image_url")
-            or (data.get("data") or [{}])[0].get("url")
+        logger.info(
+            "ShortAPI create job model=%s aspect_ratio=%s prompt_len=%d prompt_preview=%r",
+            model, aspect_ratio, len(prompt), prompt[:150],
         )
-        if not url:
-            raise RuntimeError(f"ShortAPIProvider: no URL in response: {data}")
-        return GeneratedImage(url=url)
+
+        async with httpx.AsyncClient(timeout=30) as client:
+            # Step 1: create job
+            resp = await client.post(
+                f"{self._BASE}/job/create",
+                headers={**auth_header, "Content-Type": "application/json"},
+                json={"model": model, "args": {"prompt": prompt, "aspect_ratio": aspect_ratio}},
+            )
+            logger.info("ShortAPI create status=%d", resp.status_code)
+            if not resp.is_success:
+                logger.error("ShortAPI create error status=%d body=%r", resp.status_code, resp.text[:500])
+            resp.raise_for_status()
+            create_data = resp.json()
+
+            if create_data.get("code") != 0:
+                raise RuntimeError(f"ShortAPI job create failed: {create_data}")
+
+            job_id = create_data["data"]["job_id"]
+            logger.info("ShortAPI job created job_id=%s", job_id)
+
+            # Step 2: poll until done
+            for attempt in range(self._POLL_MAX_RETRIES):
+                await asyncio.sleep(self._POLL_INTERVAL_S)
+                resp = await client.get(
+                    f"{self._BASE}/job/query",
+                    params={"id": job_id},
+                    headers=auth_header,
+                )
+                resp.raise_for_status()
+                poll_data = resp.json()
+                if poll_data.get("code") != 0:
+                    raise RuntimeError(f"ShortAPI job query failed: {poll_data}")
+                status = poll_data["data"].get("status")
+                logger.debug("ShortAPI poll attempt=%d job_id=%s status=%s", attempt + 1, job_id, status)
+                if status == 2:
+                    url = poll_data["data"]["result"]["images"][0]["url"]
+                    logger.info("ShortAPI success job_id=%s url_prefix=%r", job_id, url[:80])
+                    return GeneratedImage(url=url)
+                if status not in (0, 1):
+                    raise RuntimeError(f"ShortAPI job failed status={status}: {poll_data}")
+
+        raise RuntimeError(
+            f"ShortAPI job timed out after {self._POLL_MAX_RETRIES * self._POLL_INTERVAL_S}s (job_id={job_id})"
+        )
 
 
 # ── Video providers (extensibility scaffold) ──────────────────────────────────
