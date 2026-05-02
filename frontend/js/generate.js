@@ -317,10 +317,17 @@ function handleSSEEvent(evt) {
     }
   }
 
+  if (event === "image_generating") {
+    document.getElementById("gen-status-text").textContent = "Generating image…";
+    document.getElementById("gen-progress-bar").style.width = "95%";
+  }
+
   if (event === "error") {
     const msg = data?.message || "Unknown error";
-    if (agent === "pipeline") {
-      document.getElementById("gen-error").textContent = `Pipeline error: ${msg}`;
+    if (agent === "pipeline" || agent === "image_generation") {
+      // Pipeline-level and image generation errors need to be prominently shown
+      document.getElementById("gen-error").textContent =
+        agent === "image_generation" ? `Image generation failed: ${msg}` : `Pipeline error: ${msg}`;
       document.getElementById("gen-btn").disabled = false;
     } else {
       setAgentError(agent, msg);
