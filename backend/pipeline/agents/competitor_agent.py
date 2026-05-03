@@ -6,6 +6,7 @@ from google.adk.tools import FunctionTool
 from backend.core.config import settings
 from backend.pipeline.guardrails import content_safety_callback
 from backend.pipeline.state_keys import COMPETITOR_ANALYSIS
+from tools.knowledge_store_tools import store_knowledge_store
 from tools.research_cache_tools import check_research_cache, store_research_cache
 from tools.search_tools import google_custom_search
 from tools.serpapi_tools import serpapi_web_search
@@ -19,6 +20,7 @@ def _build_tools() -> list:
     return [
         FunctionTool(check_research_cache),
         FunctionTool(store_research_cache),
+        FunctionTool(store_knowledge_store),
         FunctionTool(serpapi_web_search),
         FunctionTool(google_custom_search),
     ]

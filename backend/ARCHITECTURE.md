@@ -19,7 +19,7 @@ backend/
 ├── models/             # SQLAlchemy ORM models
 │   ├── user.py
 │   ├── campaign.py
-│   ├── product.py
+│   ├── product.py          # Includes unit_cost_usd (Float, nullable)
 │   ├── persona.py
 │   ├── advertisement.py
 │   ├── brand_profile.py
@@ -28,7 +28,7 @@ backend/
 │   ├── auth.py
 │   ├── brand_profile.py
 │   ├── campaign.py
-│   ├── product.py
+│   ├── product.py          # ProductCreate/Update/Read include unit_cost_usd
 │   ├── persona.py
 │   ├── advertisement.py
 │   ├── research.py
@@ -37,10 +37,10 @@ backend/
 │   ├── auth.py         # POST /auth/register, POST /auth/login
 │   ├── brands.py       # CRUD /brands
 │   ├── campaigns.py    # CRUD /campaigns
-│   ├── products.py     # CRUD /products
+│   ├── products.py     # CRUD /products (+ unit_cost_usd field)
 │   ├── personas.py     # CRUD /personas
 │   ├── advertisements.py  # CRUD /advertisements
-│   ├── generation.py   # POST /generate (SSE streaming), POST /generate/ab-variant
+│   ├── generation.py   # POST /generate (SSE), rerun-stage, retry-image, cancel, ab-variant
 │   ├── evaluate.py     # POST /evaluate
 │   └── research.py     # GET /research (cached trend data)
 ├── services/           # Business logic decoupled from HTTP layer
@@ -100,17 +100,19 @@ JWT-based stateless auth:
 
 ## Data Models
 
-All models use `SQLAlchemy` async ORM with `aiosqlite` (local) or Cloud SQL (production).
+All models use SQLAlchemy async ORM with `aiosqlite` (local) or Cloud SQL (production).
 
 | Model | Key Fields | Relationships |
 |-------|-----------|---------------|
 | `User` | id, email, hashed_password | owns Campaigns, Products, Personas |
 | `BrandProfile` | id, name, company, mission, values, tone_keywords, brand_guidelines | owned by User; linked from Campaign |
 | `Campaign` | id, name, mission, brand_profile_id | belongs to User; has Advertisements |
-| `Product` | id, name, description, image_path | belongs to User |
+| `Product` | id, name, description, image_path, **unit_cost_usd** | belongs to User |
 | `Persona` | id, name, traits (JSON) | belongs to User; many-to-many with Advertisement |
 | `Advertisement` | id, status, pipeline_state (JSON), image_url, ab_variant_url, image_gen_prompt, ab_variant_prompt | belongs to Campaign + Product |
 | `ResearchCache` | id, query, embedding, result | sqlite-vec backed for RAG |
+
+`unit_cost_usd` is a nullable Float on `Product`. It is appended to `RAW_PRODUCT_DESCRIPTION` as `"Unit Cost (per unit): $X.XX"` before the pipeline starts so the product agent can extract it. An inline SQLite schema migration in `main.py`'s lifespan handler adds the column to existing databases without Alembic.
 
 ## Image Generation (`services/image_service.py`)
 
@@ -127,37 +129,46 @@ create_image_provider() → factory that reads settings.image_gen_provider
 create_video_provider() → MockVideoGenProvider (scaffold for future video support)
 ```
 
-`GeminiImageProvider` supports both local dev (uses `GOOGLE_API_KEY`) and Cloud Run (uses Vertex AI credentials) via the `google_genai_use_vertexai` flag.
+`GeminiImageProvider` supports both local dev (`GOOGLE_API_KEY`) and Cloud Run (Vertex AI credentials) via the `google_genai_use_vertexai` flag.
 
 ## Generation Endpoint (`routers/generation.py`)
 
 The `POST /generate` endpoint is the core of the application. It:
 
-1. Creates an `Advertisement` record with status `running`
-2. Loads product, campaign, brand profile, and persona context
-3. Builds pipeline input state (product description, marketing brief, brand context)
-4. Starts the ADK `Runner.run_async()` and iterates over events as an async generator
-5. For each agent `final_response` event — emits an SSE `agent_complete` event with the agent's JSON output
-6. On pipeline completion — calls `create_image_provider().generate()` for primary and A/B variant images
-7. Saves full `pipeline_state` to the Advertisement record
+1. Validates product exists and has a description
+2. Creates an `Advertisement` record with status `running`
+3. Loads product (including `unit_cost_usd`), campaign, brand profile, and persona context
+4. Builds pipeline `initial_state` with input keys **and pre-seeded optional keys** (`LOOP_FEEDBACK`, `MARKET_SEGMENTATION`, `PRICING_ANALYSIS`, `CAMPAIGN_ARCHITECTURE`)
+5. Starts `Runner.run_async()` and iterates over events
+6. For each agent `is_final_response()` event — reads output from `event.actions.state_delta` (preferred for loop agents) then `event.content`, then `session_service.get_session()` as fallback
+7. Emits SSE `agent_complete` event; increments progress only on **first** completion of each state key (prevents loop iteration double-counting)
+8. On pipeline completion — runs pricing fallback if pricing_analysis is absent; then calls image provider
+9. Saves full `pipeline_state` to the Advertisement record
 
 **Agent → State Key mapping** (`_AGENT_KEY_MAP`):
 
-| Agent | State Key Written |
-|-------|------------------|
+| Agent | State Key |
+|-------|----------|
 | `product_understanding_agent` | `product_profile` |
+| `market_segmentation_agent` | `market_segmentation` |
 | `audience_positioning_agent` | `audience_analysis` |
-| `trend_critic_agent` | `trend_research` |
+| `loop_evaluator_agent` | `loop_eval_signal` (internal, no UI tab) |
+| `trend_validator_agent` | `trend_research` |
 | `competitor_agent` | `competitor_analysis` |
+| `pricing_analysis_agent` | `pricing_analysis` |
 | `creative_strategy_agent` | `creative_directions` |
 | `persona_agent` | `selected_persona` |
 | `prompt_engineering_agent` | `image_gen_prompt` |
+| `campaign_architecture_agent` | `campaign_architecture` |
+| `experiment_design_agent` | `experiment_design` |
 | `marketing_recommendation_agent` | `marketing_output` |
 | `evaluation_agent` | `evaluation_output` |
 | `channel_adaptation_agent` | `channel_adaptation` |
 | `brand_consistency_agent` | `brand_consistency` |
 
-Non-critical agents (failures don't halt the pipeline): `trend_critic_agent`, `competitor_agent`, `marketing_recommendation_agent`, `evaluation_agent`, `channel_adaptation_agent`, `brand_consistency_agent`.
+**Non-critical agents** (failures don't halt the pipeline): `trend_validator_agent`, `competitor_agent`, `pricing_analysis_agent`, `campaign_architecture_agent`, `experiment_design_agent`, `marketing_recommendation_agent`, `evaluation_agent`, `channel_adaptation_agent`, `brand_consistency_agent`.
+
+`_TOTAL_AGENTS = 16` (15 state-key-tracked agents + image generation).
 
 ## SSE Event Protocol
 
@@ -166,12 +177,28 @@ All events are `data: <json>\n\n` formatted. Event types:
 | Event | Payload |
 |-------|---------|
 | `started` | `{ advertisement_id }` |
-| `agent_complete` | `{ agent, output, elapsed_ms }` |
-| `image_generating` | `{ provider }` |
-| `image_ready` | `{ url, ab_variant_url }` |
-| `cost_estimate` | `{ input_tokens, output_tokens, cost_usd }` |
-| `done` | `{ advertisement_id, elapsed_ms }` |
-| `error` | `{ message }` |
+| `agent_start` | `{ agent }` — emitted once per agent on first event (not re-emitted on loop iterations) |
+| `agent_complete` | `{ agent, data, progress, total, advertisement_id }` — emitted on EVERY iteration |
+| `image_generating` | `{ advertisement_id }` |
+| `image_ready` | `{ data: { url, variant_url }, advertisement_id }` |
+| `cancelled` | `{ advertisement_id }` |
+| `done` | `{ advertisement_id, status }` |
+| `cost_summary` | `{ total_cost_usd, total_latency_ms, per_agent }` |
+| `error` | `{ agent, data: { message } }` |
+
+## Inline Schema Migrations
+
+`main.py`'s lifespan handler runs idempotent SQLite migrations after `create_all`:
+
+```python
+result = await conn.execute(text("PRAGMA table_info(products)"))
+existing_cols = {row[1] for row in result.fetchall()}
+if "unit_cost_usd" not in existing_cols:
+    await conn.execute(text("ALTER TABLE products ADD COLUMN unit_cost_usd REAL"))
+    await conn.commit()
+```
+
+This pattern handles adding new columns to existing databases without Alembic.
 
 ## Deployment
 

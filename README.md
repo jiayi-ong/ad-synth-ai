@@ -1,40 +1,50 @@
 # Ad-Synth AI
 
-An AI-powered Creative Operating System for performance marketing. Turns a product description and marketing brief into structured ad concepts, production-ready image-generation prompts, and actionable campaign intelligence — using a 11-agent multi-agent pipeline with real-time streaming.
+An AI-powered Creative Operating System for performance marketing. Turns a product description and marketing brief into structured ad concepts, production-ready image-generation prompts, and a full campaign intelligence suite — using a 16-agent multi-agent pipeline with real-time streaming.
 
 ## Overview
 
-Ad-Synth AI acts as a campaign intelligence and iteration engine. A hierarchical agent pipeline — built on Google ADK and Vertex AI — researches trends across 7 platforms simultaneously, develops creative strategy, enforces brand consistency, and generates a full suite of marketing outputs. A persistent "Brand Brain" stores company and brand context across campaigns. The system mirrors how high-performing marketing teams operate, turning fragmented creative processes into a repeatable, data-driven workflow.
+Ad-Synth AI acts as a campaign intelligence and iteration engine. A hierarchical agent pipeline — built on Google ADK and Vertex AI — runs market segmentation and audience positioning in a feedback loop, researches trends across 7 platforms simultaneously, models pricing with Python-executed financial analysis, designs statistically-grounded A/B experiments, and generates a complete marketing suite. A persistent "Brand Brain" stores company and brand context across campaigns.
 
 ```
 Product Description + Marketing Brief
               │
               ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                   Ad-Synth AI Pipeline (11 agents)              │
-│                                                                 │
-│  Stage 1: Product Understanding Agent                           │
-│  Stage 2: Audience & Positioning Agent                          │
-│  Stage 3: [PARALLEL]                                            │
-│    ├── Trend Research Sub-Pipeline (5 steps, 7 platforms)       │
-│    └── Competitor Analysis Agent                                │
-│  Stage 4: Creative Strategy Agent                               │
-│  Stage 5: Persona Agent                                         │
-│  Stage 6: Prompt Engineering Agent                              │
-│  Stage 7: [PARALLEL]                                            │
-│    ├── Marketing Recommendation Agent                           │
-│    ├── Ad Evaluation Agent                                      │
-│    └── Channel Adaptation Agent                                 │
-│  Stage 8: Brand Consistency Agent                               │
-└─────────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────────┐
+│                   Ad-Synth AI Pipeline (16 agents)                   │
+│                                                                      │
+│  Stage 1:  Product Understanding Agent                               │
+│  Stage 2:  [LOOP — up to 3 iterations]                               │
+│    ├── Market Segmentation Agent  (TAM/SAM, attractiveness scores)   │
+│    ├── Audience & Positioning Agent                                  │
+│    └── Loop Evaluator Agent  (calls exit_loop at convergence ≥ 0.80) │
+│  Stage 3:  [PARALLEL]                                                │
+│    ├── Trend Research Sub-Pipeline  (5 steps, 7 platforms)           │
+│    └── Competitor Analysis Agent                                     │
+│  Stage 4:  Pricing Analysis Agent  (financial model + charts)        │
+│  Stage 5:  Creative Strategy Agent                                   │
+│  Stage 6:  Persona Agent                                             │
+│  Stage 7:  Prompt Engineering Agent                                  │
+│  Stage 8:  Campaign Architecture Agent                               │
+│  Stage 9:  Experiment Design Agent  (scipy power analysis)           │
+│  Stage 10: [PARALLEL]                                                │
+│    ├── Marketing Recommendation Agent                                │
+│    ├── Ad Evaluation Agent                                           │
+│    └── Channel Adaptation Agent                                      │
+│  Stage 11: Brand Consistency Agent                                   │
+└──────────────────────────────────────────────────────────────────────┘
               │
               ▼
   Image-Gen Prompt + A/B Variant + Full Marketing Suite + Generated Ad
 ```
 
+### Positioning ↔ Segmentation Loop (Stage 2)
+
+Stage 2 is an ADK `LoopAgent` (max 3 iterations). The loop evaluator computes a convergence score on three criteria — segment alignment, USP-pain-point coverage, positioning specificity — and calls `exit_loop` when it reaches ≥ 0.80. Feedback from each iteration is written to state (`loop_feedback`) so subsequent iterations can course-correct.
+
 ### Trend Research Sub-Pipeline
 
-The trend research stage is itself a 5-step nested pipeline that runs 7 platform agents in parallel:
+The trend research stage is a 5-step nested pipeline running 7 platform agents in parallel:
 
 ```
 trend_keyword_agent (keyword extraction)
@@ -50,35 +60,43 @@ trend_aggregator_agent (deduplication + ranking)
 trend_synthesis_agent (product-contextualized synthesis + RAG cache)
         │
         ▼
-trend_critic_agent (quality validation → writes TREND_RESEARCH)
+trend_validator_agent (quality validation → writes TREND_RESEARCH)
 ```
 
 ## Features
 
-- **11-agent orchestrated pipeline** — `SequentialAgent` with two `ParallelAgent` groups; all agents communicate through shared session state
+- **16-agent orchestrated pipeline** — `SequentialAgent` wrapping a `LoopAgent`, two `ParallelAgent` groups, and 9 sequential stages; all agents communicate through shared session state
+- **Bidirectional positioning↔segmentation loop** — Market Segmentation and Audience Positioning iterate up to 3× with convergence scoring; loop feedback propagates to the next iteration
+- **Financial modeling** — Pricing Analysis Agent executes numpy/matplotlib code to produce break-even curves, margin sensitivity charts, and segment-level pricing recommendations
+- **Statistical experiment design** — Experiment Design Agent uses `scipy.stats` power analysis to compute sample sizes and render power curves for A/B tests
+- **Campaign architecture** — phased campaign blueprint with budget allocation, key messages by segment, and success metrics
+- **Multi-namespace knowledge store** — `knowledge_store_tools.py` maintains a sqlite-vec RAG store with namespaces (`competitor`, `market_research`, `pricing_benchmarks`) that accumulates cross-campaign intelligence
 - **7-platform trend intelligence** — YouTube, Twitter/X, TikTok, Instagram, Reddit, Web, Pinterest queried concurrently with graceful fallback when keys are absent
 - **Brand Brain** — persistent brand profiles (company → brand → product hierarchy) injected as context into every generation run
 - **Multi-provider image generation** — pluggable provider abstraction with 4 implementations: Mock, Vertex AI Imagen 3, Gemini native image gen, ShortAPI (Flux/DALL-E/SD)
 - **Creative directions** — 3–5 scored concepts (novelty, audience fit, conversion potential, brand fit)
+- **Compliance flagging** — Product agent detects regulated advertising categories (health claims, supplements, financial products, alcohol, children's products, gambling, pharma) and outputs `compliance_flags`
+- **Data provenance tagging** — Every analytical agent classifies each claim as FACT / INFERENCE / ASSUMPTION and outputs a `readiness_score` (completeness, source grounding, confidence, risk level)
 - **Persistent reusable personas** — AI model personas with demographics, appearance, voice, values; selectively included/excluded per run
-- **Mismatch detection** — Audience agent flags product-audience divergences
 - **A/B variant generation** — auto-generates a second prompt that changes exactly one visual element
 - **Channel-aware adaptation** — platform-specific creative for Meta, TikTok, YouTube, etc.
-- **Real-time streaming UI** — SSE stream surfaces each agent's output as it completes, with collapsible transparency tabs and live cost tracking
+- **Real-time streaming UI** — SSE stream surfaces each agent's output as it completes, with 16 collapsible tabs, chart rendering, readiness score grid, and live cost tracking
 - **Content safety guardrails** — `before_model_callback` blocks flagged content before LLM calls
-- **RAG trend cache** — sqlite-vec stores past research; synthesis agent checks cache before re-querying
-- **Graceful error handling** — non-critical agent failures are isolated; partial results are saved and displayed
+- **RAG caches** — sqlite-vec stores for trend synthesis and multi-namespace knowledge store
+- **Graceful error handling** — non-critical agent failures are isolated; partial results saved and displayed
+- **Unit cost tracking** — Products carry `unit_cost_usd` used to anchor the pricing fallback model
 
 ## Tech Stack
 
 | Layer | Technology |
 |-------|-----------|
-| Agent Orchestration | Google ADK (`SequentialAgent`, `ParallelAgent`, `LlmAgent`, `FunctionTool`) |
+| Agent Orchestration | Google ADK (`SequentialAgent`, `ParallelAgent`, `LoopAgent`, `LlmAgent`, `FunctionTool`) |
 | LLM | Gemini 2.0 Flash (via `google-genai`) |
 | Image Generation | Vertex AI Imagen 3 / Gemini native / ShortAPI (Flux, DALL-E, SD) / Mock |
 | Backend | FastAPI + SQLAlchemy async (`aiosqlite` local, Cloud SQL prod) |
 | Auth | JWT (`python-jose`) + bcrypt |
-| Trend Cache | sqlite-vec (vector similarity RAG) |
+| Vector Cache | sqlite-vec (trend cache + multi-namespace knowledge store) |
+| Scientific Computing | numpy, matplotlib (financial charts), scipy + statsmodels (power analysis) |
 | Social APIs | YouTube Data API v3, Twitter API v2 (Tweepy), Reddit (PRAW), SERPAPI |
 | Frontend | Vanilla HTML/CSS/ES6 — no build step, hash-based SPA |
 | Package Manager | uv |
@@ -91,21 +109,27 @@ ad-synth-ai/
 ├── backend/
 │   ├── core/           # Config (Pydantic Settings), auth, dependencies, logging middleware
 │   ├── db/             # SQLAlchemy async engine and session factory
-│   ├── models/         # ORM: User, Campaign, Product, Persona, Advertisement, BrandProfile, ResearchCache
+│   ├── models/         # ORM: User, Campaign, Product (+ unit_cost_usd), Persona, Advertisement, BrandProfile, ResearchCache
 │   ├── schemas/        # Pydantic request/response schemas
 │   ├── routers/        # FastAPI routes: auth, brands, campaigns, products, personas, ads, generate, evaluate, research
 │   ├── services/       # Business logic: auth, CRUD services, image provider factory
 │   └── pipeline/
-│       ├── agents/         # 11 main LlmAgent definitions
-│       │   └── trend_agents/   # 5-agent trend sub-pipeline (keyword, platform×7, aggregator, synthesis, critic)
-│       ├── orchestrator.py     # Full 11-agent SequentialAgent assembly
+│       ├── agents/         # 16 main LlmAgent + LoopAgent definitions
+│       │   ├── positioning_segmentation_loop.py  # LoopAgent wrapping market_seg + audience + loop_eval
+│       │   ├── market_segmentation_agent.py
+│       │   ├── loop_evaluator_agent.py
+│       │   ├── pricing_analysis_agent.py
+│       │   ├── campaign_architecture_agent.py
+│       │   ├── experiment_design_agent.py
+│       │   └── trend_agents/   # 5-agent trend sub-pipeline (keyword, platform×7, aggregator, synthesis, validator)
+│       ├── orchestrator.py     # Full 11-stage SequentialAgent assembly
 │       ├── runner.py           # ADK Runner + DatabaseSessionService
-│       ├── state_keys.py       # All state key constants (contract between agents)
+│       ├── state_keys.py       # All state key constants + DOWNSTREAM_KEYS map
 │       └── guardrails.py       # Content safety before_model_callback
 ├── prompts/            # Plain .txt prompt files — one per agent, human-editable
-├── tools/              # FunctionTools: Google Search, Reddit, YouTube, Twitter, SERPAPI, trend cache
+├── tools/              # FunctionTools: search, Reddit, YouTube, Twitter, SERPAPI, trend cache, knowledge store, code execution
 ├── frontend/           # Single-page app (index.html + CSS + JS modules, no build step)
-├── tests/              # Pytest unit + integration tests (39 tests)
+├── tests/              # Pytest unit + integration tests
 ├── Dockerfile          # Multi-stage uv build
 └── cloudbuild.yaml     # Cloud Build → Cloud Run CI/CD pipeline
 ```
@@ -232,21 +256,26 @@ All prompts live in `prompts/` as plain `.txt` files, loaded at startup. Edit th
 
 | File | Agent | Key Output |
 |------|-------|------------|
-| `product_agent.txt` | Product Understanding | `product_profile` |
-| `audience_agent.txt` | Audience & Positioning | `audience_analysis` |
-| `trend_keyword_agent.txt` | Trend Keyword Extraction | `trend_keywords` |
-| `trend_youtube/twitter/tiktok/instagram/reddit/web/pinterest_agent.txt` | Platform Specialists (×7) | `*_trend_data` |
-| `trend_aggregator_agent.txt` | Trend Aggregator | `aggregated_trend_data` |
-| `trend_synthesis_agent.txt` | Trend Synthesis | `aggregated_trend_data` (refined) |
-| `trend_critic_agent.txt` | Trend Critic | `trend_research` |
-| `competitor_agent.txt` | Competitor Analysis | `competitor_analysis` |
-| `creative_agent.txt` | Creative Strategy | `creative_directions` |
+| `product_agent.txt` | Product Understanding | `product_profile` (+ `compliance_flags`, `readiness_score`) |
+| `market_segmentation_agent.txt` | Market Segmentation | `market_segmentation` (+ TAM/SAM, charts) |
+| `loop_evaluator_agent.txt` | Loop Evaluator | `loop_eval_signal`, `loop_feedback` |
+| `audience_agent.txt` | Audience & Positioning | `audience_analysis` (+ `readiness_score`) |
+| `competitor_agent.txt` | Competitor Analysis | `competitor_analysis` (+ `competitor_pricing`) |
+| `pricing_analysis_agent.txt` | Pricing Analysis | `pricing_analysis` (+ break-even charts) |
+| `creative_agent.txt` | Creative Strategy | `creative_directions` (+ `readiness_score`) |
 | `persona_agent.txt` | Persona Selection | `selected_persona` |
-| `prompt_agent.txt` | Prompt Engineering | `image_gen_prompt` + `ab_variant_prompt` |
-| `marketing_agent.txt` | Marketing Recommendations | `marketing_output` |
-| `evaluation_agent.txt` | Ad Evaluation | `evaluation_output` |
+| `prompt_agent.txt` | Prompt Engineering | `image_gen_prompt`, `ab_variant_prompt` |
+| `campaign_architecture_agent.txt` | Campaign Architecture | `campaign_architecture` (phases, budget %, metrics) |
+| `experiment_design_agent.txt` | Experiment Design | `experiment_design` (+ scipy power curve) |
+| `marketing_agent.txt` | Marketing Recommendations | `marketing_output` (+ `readiness_score`) |
+| `evaluation_agent.txt` | Ad Evaluation | `evaluation_output` (+ `readiness_score`) |
 | `channel_agent.txt` | Channel Adaptation | `channel_adaptation` |
-| `brand_consistency_agent.txt` | Brand Consistency | `brand_consistency` |
+| `brand_consistency_agent.txt` | Brand Consistency | `brand_consistency` (+ `readiness_score`) |
+| `trend_keyword_agent.txt` | Trend Keyword Extraction | `trend_keywords` |
+| `trend_{platform}_agent.txt` ×7 | Platform Specialists | `*_trend_data` |
+| `trend_aggregator_agent.txt` | Trend Aggregator | `aggregated_trend_data` |
+| `trend_synthesis_agent.txt` | Trend Synthesis | `aggregated_trend_data` (refined, + charts) |
+| `trend_validator_agent.txt` | Trend Validator | `trend_research` |
 
 ## Key Data Models
 
@@ -254,7 +283,7 @@ All prompts live in `prompts/` as plain `.txt` files, loaded at startup. Edit th
 |-------|-------------|
 | `Campaign` | Top-level container; links to a `BrandProfile` |
 | `BrandProfile` | Persistent brand context: company, mission, values, tone keywords, guidelines |
-| `Product` | Name, description, reference image path |
+| `Product` | Name, description, reference image path, `unit_cost_usd` (anchors pricing fallback) |
 | `Persona` | Reusable AI model persona — demographics, appearance, voice, values (JSON) |
 | `Advertisement` | Links campaign + product + personas; stores full `pipeline_state` JSON, image URLs, A/B variant, status |
 | `ResearchCache` | sqlite-vec backed store for RAG-retrieved trend research |

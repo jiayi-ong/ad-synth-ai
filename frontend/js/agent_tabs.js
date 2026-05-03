@@ -3,18 +3,22 @@ import { api } from "./api.js";
 
 // ── Stage definitions ─────────────────────────────────────────────────────────
 export const AGENTS = [
-  { key: "product_profile",     short: "Product",     icon: "📦" },
-  { key: "audience_analysis",   short: "Audience",    icon: "🎯" },
-  { key: "trend_research",      short: "Trends",      icon: "📊" },
-  { key: "competitor_analysis", short: "Competitors", icon: "🔍" },
-  { key: "creative_directions", short: "Creative",    icon: "💡" },
-  { key: "selected_persona",    short: "Persona",     icon: "👤" },
-  { key: "image_gen_prompt",    short: "Prompts",     icon: "✍️" },
-  { key: "marketing_output",    short: "Marketing",   icon: "📣" },
-  { key: "evaluation_output",   short: "Evaluation",  icon: "⭐" },
-  { key: "channel_adaptation",  short: "Channel",     icon: "📱" },
-  { key: "brand_consistency",   short: "Brand",       icon: "🛡️" },
-  { key: "image_generation",    short: "Image Gen",   icon: "🖼️" },
+  { key: "product_profile",       short: "Product",     icon: "📦" },
+  { key: "market_segmentation",   short: "Segments",    icon: "📊" },
+  { key: "audience_analysis",     short: "Audience",    icon: "🎯" },
+  { key: "trend_research",        short: "Trends",      icon: "📈" },
+  { key: "competitor_analysis",   short: "Competitors", icon: "🔍" },
+  { key: "pricing_analysis",      short: "Pricing",     icon: "💰" },
+  { key: "creative_directions",   short: "Creative",    icon: "💡" },
+  { key: "selected_persona",      short: "Persona",     icon: "👤" },
+  { key: "image_gen_prompt",      short: "Prompts",     icon: "✍️" },
+  { key: "campaign_architecture", short: "Campaign",    icon: "🗺️" },
+  { key: "experiment_design",     short: "Experiments", icon: "🧪" },
+  { key: "marketing_output",      short: "Marketing",   icon: "📣" },
+  { key: "evaluation_output",     short: "Evaluation",  icon: "⭐" },
+  { key: "channel_adaptation",    short: "Channel",     icon: "📱" },
+  { key: "brand_consistency",     short: "Brand",       icon: "🛡️" },
+  { key: "image_generation",      short: "Image Gen",   icon: "🖼️" },
 ];
 
 // ── Stage state ────────────────────────────────────────────────────────────────
@@ -233,18 +237,22 @@ function _renderPanel(key) {
 
 function _getDownstreamNames(key) {
   const DOWNSTREAM = {
-    product_profile:    ["product_profile","audience_analysis","trend_research","competitor_analysis","creative_directions","selected_persona","image_gen_prompt","marketing_output","evaluation_output","channel_adaptation","brand_consistency","image_generation"],
-    audience_analysis:  ["audience_analysis","trend_research","competitor_analysis","creative_directions","selected_persona","image_gen_prompt","marketing_output","evaluation_output","channel_adaptation","brand_consistency","image_generation"],
-    trend_research:     ["trend_research","creative_directions","selected_persona","image_gen_prompt","marketing_output","evaluation_output","channel_adaptation","brand_consistency","image_generation"],
-    competitor_analysis:["competitor_analysis","creative_directions","selected_persona","image_gen_prompt","marketing_output","evaluation_output","channel_adaptation","brand_consistency","image_generation"],
-    creative_directions:["creative_directions","selected_persona","image_gen_prompt","marketing_output","evaluation_output","channel_adaptation","brand_consistency","image_generation"],
-    selected_persona:   ["selected_persona","image_gen_prompt","marketing_output","evaluation_output","channel_adaptation","brand_consistency","image_generation"],
-    image_gen_prompt:   ["image_gen_prompt","marketing_output","evaluation_output","channel_adaptation","brand_consistency","image_generation"],
-    marketing_output:   ["marketing_output","brand_consistency"],
-    evaluation_output:  ["evaluation_output","brand_consistency"],
-    channel_adaptation: ["channel_adaptation","brand_consistency"],
-    brand_consistency:  ["brand_consistency"],
-    image_generation:   ["image_generation"],
+    product_profile:       ["product_profile","market_segmentation","audience_analysis","trend_research","competitor_analysis","pricing_analysis","creative_directions","selected_persona","image_gen_prompt","campaign_architecture","experiment_design","marketing_output","evaluation_output","channel_adaptation","brand_consistency","image_generation"],
+    market_segmentation:   ["market_segmentation","audience_analysis","trend_research","competitor_analysis","pricing_analysis","creative_directions","selected_persona","image_gen_prompt","campaign_architecture","experiment_design","marketing_output","evaluation_output","channel_adaptation","brand_consistency","image_generation"],
+    audience_analysis:     ["audience_analysis","trend_research","competitor_analysis","pricing_analysis","creative_directions","selected_persona","image_gen_prompt","campaign_architecture","experiment_design","marketing_output","evaluation_output","channel_adaptation","brand_consistency","image_generation"],
+    trend_research:        ["trend_research","creative_directions","selected_persona","image_gen_prompt","campaign_architecture","experiment_design","marketing_output","evaluation_output","channel_adaptation","brand_consistency","image_generation"],
+    competitor_analysis:   ["competitor_analysis","pricing_analysis","creative_directions","selected_persona","image_gen_prompt","campaign_architecture","experiment_design","marketing_output","evaluation_output","channel_adaptation","brand_consistency","image_generation"],
+    pricing_analysis:      ["pricing_analysis","creative_directions","selected_persona","image_gen_prompt","campaign_architecture","experiment_design","marketing_output","evaluation_output","channel_adaptation","brand_consistency","image_generation"],
+    creative_directions:   ["creative_directions","selected_persona","image_gen_prompt","campaign_architecture","experiment_design","marketing_output","evaluation_output","channel_adaptation","brand_consistency","image_generation"],
+    selected_persona:      ["selected_persona","image_gen_prompt","campaign_architecture","experiment_design","marketing_output","evaluation_output","channel_adaptation","brand_consistency","image_generation"],
+    image_gen_prompt:      ["image_gen_prompt","campaign_architecture","experiment_design","marketing_output","evaluation_output","channel_adaptation","brand_consistency","image_generation"],
+    campaign_architecture: ["campaign_architecture","experiment_design","marketing_output","evaluation_output","channel_adaptation","brand_consistency","image_generation"],
+    experiment_design:     ["experiment_design","marketing_output","evaluation_output","channel_adaptation","brand_consistency","image_generation"],
+    marketing_output:      ["marketing_output","brand_consistency"],
+    evaluation_output:     ["evaluation_output","brand_consistency"],
+    channel_adaptation:    ["channel_adaptation","brand_consistency"],
+    brand_consistency:     ["brand_consistency"],
+    image_generation:      ["image_generation"],
   };
   return (DOWNSTREAM[key] || [key]).map(k => AGENTS.find(a => a.key === k)?.short || k);
 }
@@ -278,18 +286,22 @@ async function _startRerun(stageKey, extraInput, includeDownstream) {
   const token = getToken();
 
   const DOWNSTREAM_KEYS_MAP = {
-    product_profile:    ["product_profile","audience_analysis","trend_research","competitor_analysis","creative_directions","selected_persona","image_gen_prompt","marketing_output","evaluation_output","channel_adaptation","brand_consistency","image_generation"],
-    audience_analysis:  ["audience_analysis","trend_research","competitor_analysis","creative_directions","selected_persona","image_gen_prompt","marketing_output","evaluation_output","channel_adaptation","brand_consistency","image_generation"],
-    trend_research:     ["trend_research","creative_directions","selected_persona","image_gen_prompt","marketing_output","evaluation_output","channel_adaptation","brand_consistency","image_generation"],
-    competitor_analysis:["competitor_analysis","creative_directions","selected_persona","image_gen_prompt","marketing_output","evaluation_output","channel_adaptation","brand_consistency","image_generation"],
-    creative_directions:["creative_directions","selected_persona","image_gen_prompt","marketing_output","evaluation_output","channel_adaptation","brand_consistency","image_generation"],
-    selected_persona:   ["selected_persona","image_gen_prompt","marketing_output","evaluation_output","channel_adaptation","brand_consistency","image_generation"],
-    image_gen_prompt:   ["image_gen_prompt","marketing_output","evaluation_output","channel_adaptation","brand_consistency","image_generation"],
-    marketing_output:   ["marketing_output","brand_consistency"],
-    evaluation_output:  ["evaluation_output","brand_consistency"],
-    channel_adaptation: ["channel_adaptation","brand_consistency"],
-    brand_consistency:  ["brand_consistency"],
-    image_generation:   ["image_generation"],
+    product_profile:       ["product_profile","market_segmentation","audience_analysis","trend_research","competitor_analysis","pricing_analysis","creative_directions","selected_persona","image_gen_prompt","campaign_architecture","experiment_design","marketing_output","evaluation_output","channel_adaptation","brand_consistency","image_generation"],
+    market_segmentation:   ["market_segmentation","audience_analysis","trend_research","competitor_analysis","pricing_analysis","creative_directions","selected_persona","image_gen_prompt","campaign_architecture","experiment_design","marketing_output","evaluation_output","channel_adaptation","brand_consistency","image_generation"],
+    audience_analysis:     ["audience_analysis","trend_research","competitor_analysis","pricing_analysis","creative_directions","selected_persona","image_gen_prompt","campaign_architecture","experiment_design","marketing_output","evaluation_output","channel_adaptation","brand_consistency","image_generation"],
+    trend_research:        ["trend_research","creative_directions","selected_persona","image_gen_prompt","campaign_architecture","experiment_design","marketing_output","evaluation_output","channel_adaptation","brand_consistency","image_generation"],
+    competitor_analysis:   ["competitor_analysis","pricing_analysis","creative_directions","selected_persona","image_gen_prompt","campaign_architecture","experiment_design","marketing_output","evaluation_output","channel_adaptation","brand_consistency","image_generation"],
+    pricing_analysis:      ["pricing_analysis","creative_directions","selected_persona","image_gen_prompt","campaign_architecture","experiment_design","marketing_output","evaluation_output","channel_adaptation","brand_consistency","image_generation"],
+    creative_directions:   ["creative_directions","selected_persona","image_gen_prompt","campaign_architecture","experiment_design","marketing_output","evaluation_output","channel_adaptation","brand_consistency","image_generation"],
+    selected_persona:      ["selected_persona","image_gen_prompt","campaign_architecture","experiment_design","marketing_output","evaluation_output","channel_adaptation","brand_consistency","image_generation"],
+    image_gen_prompt:      ["image_gen_prompt","campaign_architecture","experiment_design","marketing_output","evaluation_output","channel_adaptation","brand_consistency","image_generation"],
+    campaign_architecture: ["campaign_architecture","experiment_design","marketing_output","evaluation_output","channel_adaptation","brand_consistency","image_generation"],
+    experiment_design:     ["experiment_design","marketing_output","evaluation_output","channel_adaptation","brand_consistency","image_generation"],
+    marketing_output:      ["marketing_output","brand_consistency"],
+    evaluation_output:     ["evaluation_output","brand_consistency"],
+    channel_adaptation:    ["channel_adaptation","brand_consistency"],
+    brand_consistency:     ["brand_consistency"],
+    image_generation:      ["image_generation"],
   };
   for (const k of DOWNSTREAM_KEYS_MAP[stageKey] || [stageKey]) {
     _state[k] = { status: "waiting", data: null };

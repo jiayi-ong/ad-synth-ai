@@ -23,6 +23,7 @@ from backend.pipeline.state_keys import (
     AUDIENCE_ANALYSIS,
     BRAND_CONSISTENCY,
     BRAND_PROFILE_CONTEXT,
+    CAMPAIGN_ARCHITECTURE,
     CAMPAIGN_ID,
     CHANNEL_ADAPTATION,
     COMPETITOR_ANALYSIS,
@@ -30,10 +31,15 @@ from backend.pipeline.state_keys import (
     DOWNSTREAM_KEYS,
     EVALUATION_OUTPUT,
     EXCLUDED_PERSONA_IDS,
+    EXPERIMENT_DESIGN,
     EXTRA_INPUT,
     IMAGE_GEN_PROMPT,
+    LOOP_EVAL_SIGNAL,
+    LOOP_FEEDBACK,
+    MARKET_SEGMENTATION,
     MARKETING_OUTPUT,
     PIPELINE_ERROR,
+    PRICING_ANALYSIS,
     PRODUCT_PROFILE,
     RAW_MARKETING_BRIEF,
     RAW_PRODUCT_DESCRIPTION,
@@ -60,12 +66,17 @@ router = APIRouter(prefix="/generate", tags=["generation"])
 # supersedes it, so we emit only one SSE event for trend_research.
 _AGENT_KEY_MAP = {
     "product_understanding_agent":    PRODUCT_PROFILE,
+    "market_segmentation_agent":      MARKET_SEGMENTATION,
     "audience_positioning_agent":     AUDIENCE_ANALYSIS,
+    "loop_evaluator_agent":           LOOP_EVAL_SIGNAL,   # internal loop signal, no UI tab
     "trend_validator_agent":          TREND_RESEARCH,
     "competitor_agent":               COMPETITOR_ANALYSIS,
+    "pricing_analysis_agent":         PRICING_ANALYSIS,
     "creative_strategy_agent":        CREATIVE_DIRECTIONS,
     "persona_agent":                  SELECTED_PERSONA,
     "prompt_engineering_agent":       IMAGE_GEN_PROMPT,
+    "campaign_architecture_agent":    CAMPAIGN_ARCHITECTURE,
+    "experiment_design_agent":        EXPERIMENT_DESIGN,
     "marketing_recommendation_agent": MARKETING_OUTPUT,
     "evaluation_agent":               EVALUATION_OUTPUT,
     "channel_adaptation_agent":       CHANNEL_ADAPTATION,
@@ -76,14 +87,17 @@ _AGENT_KEY_MAP = {
 _NON_CRITICAL_AGENTS = {
     "trend_validator_agent",
     "competitor_agent",
+    "pricing_analysis_agent",
     "marketing_recommendation_agent",
     "evaluation_agent",
     "channel_adaptation_agent",
+    "campaign_architecture_agent",
+    "experiment_design_agent",
     "brand_consistency_agent",
 }
 
-# Total tracked agent completions for progress bar
-_TOTAL_AGENTS = 11
+# Total tracked agent completions for progress bar (excludes loop_evaluator internal signal)
+_TOTAL_AGENTS = 16
 
 # Gemini 2.0 Flash pricing (USD per million tokens, as of 2025)
 _INPUT_COST_PER_M = 0.075
@@ -171,6 +185,8 @@ async def generate_ad(
         # the literal string "None" inside the prompt.
         desc_text = (product.description or "").strip()
         product_desc = f"{product.name}\n{desc_text}" if desc_text else product.name
+        if product.unit_cost_usd is not None:
+            product_desc += f"\nUnit Cost (per unit): ${product.unit_cost_usd:.2f}"
 
         brief_parts = []
         if request.target_audience:
@@ -211,7 +227,11 @@ async def generate_ad(
             EXCLUDED_PERSONA_IDS: request.excluded_persona_ids,
             BRAND_PROFILE_CONTEXT: brand_profile_context,
             TARGET_CHANNEL: request.target_channel or "",
-            EXTRA_INPUT: "",  # always present so prompts with {extra_input} don't raise KeyError
+            EXTRA_INPUT: "",        # always present so prompts with {extra_input} don't raise KeyError
+            LOOP_FEEDBACK: "",      # pre-seeded: missing on iteration 1 of positioning_segmentation_loop
+            MARKET_SEGMENTATION: "",   # pre-seeded: used as template var by pricing/campaign/experiment agents
+            PRICING_ANALYSIS: "",      # pre-seeded: non-critical agent may be skipped before campaign_architecture runs
+            CAMPAIGN_ARCHITECTURE: "", # pre-seeded: non-critical agent may be skipped before experiment_design runs
         }
 
         # Log all user inputs at pipeline start for observability / debugging
@@ -231,6 +251,10 @@ async def generate_ad(
         session_id = f"ad_{ad_id}"
         user_id = current_user.id
         progress = 0
+        # Track completed state keys to avoid double-counting loop iterations in progress bar.
+        # A loop agent (e.g. positioning_segmentation_loop) fires is_final_response() once per
+        # iteration for each sub-agent; only the first completion of each state_key counts.
+        completed_state_keys: set[str] = set()
 
         try:
             runner = runner_module.get_runner()
@@ -261,7 +285,13 @@ async def generate_ad(
                 if event.is_final_response() and event.author in _AGENT_KEY_MAP:
                     agent_name = event.author
                     state_key = _AGENT_KEY_MAP[agent_name]
-                    progress += 1
+                    # Only count the first completion of each state key toward progress.
+                    # Loop agents (market_segmentation, audience_analysis, loop_eval_signal)
+                    # fire once per iteration; the internal loop_eval_signal has no UI tab.
+                    is_first_completion = state_key not in completed_state_keys and state_key != LOOP_EVAL_SIGNAL
+                    if is_first_completion:
+                        progress += 1
+                        completed_state_keys.add(state_key)
                     end_time = time.monotonic()
                     start_time = agent_start_times.get(agent_name, end_time)
 
@@ -288,19 +318,37 @@ async def generate_ad(
                         cost_usd=cost,
                     )
 
-                    # Retrieve the agent's output from session state
-                    current_session = await runner.session_service.get_session(
-                        app_name="ad_synth_ai",
-                        user_id=user_id,
-                        session_id=session_id,
-                    )
-                    raw_output = current_session.state.get(state_key, "")
+                    # Retrieve the agent's output.
+                    # Priority 1 — event.actions.state_delta: for sub-agents inside a LoopAgent,
+                    # DatabaseSessionService does not commit state between iterations; state_delta
+                    # contains the in-memory writes from this specific event and is always current.
+                    # Priority 2 — event.content text: same text that LlmAgent writes to output_key;
+                    # present when state_delta doesn't carry the key (ADK version-specific).
+                    # Priority 3 — session service: reliable for non-loop sequential agents.
+                    raw_output = None
+                    try:
+                        delta = (getattr(event.actions, "state_delta", None) or {}) if event.actions else {}
+                        raw_output = delta.get(state_key)
+                    except Exception:
+                        pass
+                    if raw_output is None and event.content and event.content.parts:
+                        text_parts = [p.text for p in event.content.parts if getattr(p, "text", None)]
+                        if text_parts:
+                            raw_output = text_parts[-1]
+                    if raw_output is None:
+                        current_session = await runner.session_service.get_session(
+                            app_name="ad_synth_ai",
+                            user_id=user_id,
+                            session_id=session_id,
+                        )
+                        raw_output = current_session.state.get(state_key, "")
                     # ADK may store state values as native dicts; normalize to string for downstream processing
                     if isinstance(raw_output, dict):
                         raw_output = json.dumps(raw_output)
-                    logger.debug(
-                        "agent_output_raw ad=%s agent=%s key=%s len=%d preview=%r",
-                        ad_id, agent_name, state_key, len(raw_output or ""), (raw_output or "")[:300],
+                    raw_output = raw_output or ""
+                    logger.info(
+                        "agent_output_raw ad=%s agent=%s key=%s len=%d output=%r",
+                        ad_id, agent_name, state_key, len(raw_output or ""), (raw_output or "")[:2000],
                     )
                     parsed = _parse_json_output(raw_output)
 
@@ -319,6 +367,7 @@ async def generate_ad(
                         parsed_type=type(parsed).__name__,
                         raw_len=len(raw_output or ""),
                         output_summary=output_summary,
+                        output_json_preview=raw_output or "",
                     )
 
                     # Persist to DB
@@ -366,6 +415,9 @@ async def generate_ad(
                             ad.brand_consistency_score = float(score)
                         await db.commit()
 
+                    # New pipeline outputs — persist to pipeline_state (already done above
+                    # via update_pipeline_state); no additional ad-model fields needed.
+
                     if state_key == SELECTED_PERSONA and isinstance(parsed, dict):
                         if parsed.get("save_new_persona") and isinstance(parsed.get("persona"), dict):
                             from backend.models.persona import Persona as PersonaModel
@@ -403,6 +455,27 @@ async def generate_ad(
             yield _sse("error", {"agent": "pipeline", "data": {"message": str(e)}})
         finally:
             _cancellation_flags.pop(ad_id, None)
+
+        # 6a. Pricing fallback — if pricing_analysis_agent was skipped or failed,
+        # compute a cost-plus fallback anchored on unit_cost_usd from PRODUCT_PROFILE.
+        pricing_state = ad.pipeline_state or {}
+        if isinstance(pricing_state, str):
+            try:
+                pricing_state = json.loads(pricing_state)
+            except (json.JSONDecodeError, TypeError):
+                pricing_state = {}
+        if not pricing_state.get(PRICING_ANALYSIS):
+            product_profile_raw = pricing_state.get(PRODUCT_PROFILE, {})
+            if isinstance(product_profile_raw, str):
+                try:
+                    product_profile_raw = json.loads(product_profile_raw)
+                except (json.JSONDecodeError, TypeError):
+                    product_profile_raw = {}
+            if isinstance(product_profile_raw, dict):
+                from backend.pipeline.agents.pricing_analysis_agent import compute_pricing_fallback
+                fallback = compute_pricing_fallback(product_profile_raw)
+                await advertisement_service.update_pipeline_state(ad, PRICING_ANALYSIS, fallback, db)
+                logger.info("pricing_fallback_applied ad=%s unit_cost=%s", ad_id, fallback.get("unit_cost_usd"))
 
         # 6. Trigger image generation
         logger.info(
@@ -654,8 +727,14 @@ async def rerun_stage(
         for k in DOWNSTREAM_KEYS.get(stage_key, []):
             existing_state.pop(k, None)
 
-        # Always ensure extra_input is present; override if caller provided one
+        # Always ensure extra_input is present; override if caller provided one.
+        # Also pre-seed loop and optional-agent state keys so ADK template injection
+        # doesn't raise KeyError if the re-run starts at or before the loop.
         existing_state.setdefault(EXTRA_INPUT, "")
+        existing_state.setdefault(LOOP_FEEDBACK, "")
+        existing_state.setdefault(MARKET_SEGMENTATION, "")
+        existing_state.setdefault(PRICING_ANALYSIS, "")
+        existing_state.setdefault(CAMPAIGN_ARCHITECTURE, "")
         if request.extra_input:
             existing_state[EXTRA_INPUT] = request.extra_input
 
@@ -677,6 +756,7 @@ async def rerun_stage(
 
             agent_start_times: dict[str, float] = {}
             progress = 0
+            completed_state_keys: set[str] = set()
 
             async for event in runner.run_async(
                 user_id=current_user.id,
@@ -694,7 +774,10 @@ async def rerun_stage(
                 if event.is_final_response() and event.author in _AGENT_KEY_MAP:
                     agent_name = event.author
                     state_key = _AGENT_KEY_MAP[agent_name]
-                    progress += 1
+                    is_first_completion = state_key not in completed_state_keys and state_key != LOOP_EVAL_SIGNAL
+                    if is_first_completion:
+                        progress += 1
+                        completed_state_keys.add(state_key)
                     end_time = time.monotonic()
                     start_time = agent_start_times.get(agent_name, end_time)
 
@@ -712,14 +795,26 @@ async def rerun_stage(
                     }
                     agent_telemetry.append(telemetry_entry)
 
-                    current_session = await runner.session_service.get_session(
-                        app_name="ad_synth_ai",
-                        user_id=current_user.id,
-                        session_id=session_id,
-                    )
-                    raw_output = current_session.state.get(state_key, "")
+                    raw_output = None
+                    try:
+                        delta = (getattr(event.actions, "state_delta", None) or {}) if event.actions else {}
+                        raw_output = delta.get(state_key)
+                    except Exception:
+                        pass
+                    if raw_output is None and event.content and event.content.parts:
+                        text_parts = [p.text for p in event.content.parts if getattr(p, "text", None)]
+                        if text_parts:
+                            raw_output = text_parts[-1]
+                    if raw_output is None:
+                        current_session = await runner.session_service.get_session(
+                            app_name="ad_synth_ai",
+                            user_id=current_user.id,
+                            session_id=session_id,
+                        )
+                        raw_output = current_session.state.get(state_key, "")
                     if isinstance(raw_output, dict):
                         raw_output = json.dumps(raw_output)
+                    raw_output = raw_output or ""
                     parsed = _parse_json_output(raw_output)
 
                     # Snapshot previous value to history before overwriting

@@ -55,10 +55,11 @@ function renderProductsTab(products) {
         <div style="flex:1">
           <div class="card-title">${esc(p.name)}</div>
           <div class="card-meta">${esc(p.description || "No description")}</div>
+          ${p.unit_cost_usd != null ? `<div class="card-meta">Unit Cost: $${p.unit_cost_usd.toFixed(2)}</div>` : ""}
           ${p.image_path ? `<div class="card-meta mt-16">📎 Image attached</div>` : ""}
         </div>
         <div style="display:flex;gap:6px;flex-shrink:0">
-          <button class="btn btn-secondary btn-sm edit-product" data-id="${p.id}" data-name="${esc(p.name)}" data-desc="${esc(p.description || "")}">Edit</button>
+          <button class="btn btn-secondary btn-sm edit-product" data-id="${p.id}" data-name="${esc(p.name)}" data-desc="${esc(p.description || "")}" data-unit-cost="${p.unit_cost_usd ?? ""}">Edit</button>
           <button class="btn btn-danger btn-sm delete-product" data-id="${p.id}">Delete</button>
         </div>
       </div>
@@ -71,6 +72,10 @@ function renderProductsTab(products) {
         <div class="form-group">
           <label>Description</label>
           <textarea class="edit-p-desc" data-id="${p.id}">${esc(p.description || "")}</textarea>
+        </div>
+        <div class="form-group">
+          <label>Unit Cost (USD) *</label>
+          <input type="number" step="0.01" min="0" class="edit-p-unit-cost" data-id="${p.id}" value="${p.unit_cost_usd ?? ""}" placeholder="e.g. 12.50" required />
         </div>
         <div class="edit-form-actions">
           <button class="btn btn-primary btn-sm save-product" data-id="${p.id}">Save</button>
@@ -94,6 +99,12 @@ function renderProductsTab(products) {
           <div class="form-group">
             <label>Upload Image</label>
             <input type="file" id="p-image" accept="image/*" style="padding:6px" />
+          </div>
+        </div>
+        <div class="grid-2">
+          <div class="form-group">
+            <label>Unit Cost (USD) *</label>
+            <input type="number" step="0.01" min="0" id="p-unit-cost" required placeholder="e.g. 12.50" />
           </div>
         </div>
         <div class="form-group">
@@ -326,9 +337,11 @@ export function bindProject(campaignId) {
     btn.disabled = true;
     document.getElementById("product-error").textContent = "";
     try {
+      const unitCostRaw = document.getElementById("p-unit-cost").value.trim();
       const product = await api.createProduct(campaignId, {
         name: document.getElementById("p-name").value.trim(),
         description: document.getElementById("p-desc").value.trim() || null,
+        unit_cost_usd: unitCostRaw ? parseFloat(unitCostRaw) : null,
       });
       const imageFile = document.getElementById("p-image").files[0];
       if (imageFile) {
@@ -411,13 +424,16 @@ export function bindProject(campaignId) {
       const id = btn.dataset.id;
       const nameEl = document.querySelector(`.edit-p-name[data-id="${id}"]`);
       const descEl = document.querySelector(`.edit-p-desc[data-id="${id}"]`);
+      const unitCostEl = document.querySelector(`.edit-p-unit-cost[data-id="${id}"]`);
       const errEl = document.querySelector(`.edit-product-error[data-id="${id}"]`);
       if (!nameEl.value.trim()) { if (errEl) errEl.textContent = "Name is required"; return; }
       btn.disabled = true;
       try {
+        const unitCostRaw = unitCostEl?.value.trim();
         await api.updateProduct(campaignId, id, {
           name: nameEl.value.trim(),
           description: descEl.value.trim() || null,
+          unit_cost_usd: unitCostRaw ? parseFloat(unitCostRaw) : null,
         });
         window.location.reload();
       } catch (err) {

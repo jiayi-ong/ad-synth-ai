@@ -1,10 +1,12 @@
 from pathlib import Path
 
 from google.adk.agents import LlmAgent
+from google.adk.tools import FunctionTool
 
 from backend.core.config import settings
 from backend.pipeline.guardrails import content_safety_callback
-from backend.pipeline.state_keys import AUDIENCE_ANALYSIS
+from backend.pipeline.state_keys import EXPERIMENT_DESIGN
+from tools.code_tools import execute_python
 
 
 def _load_prompt(name: str) -> str:
@@ -13,17 +15,18 @@ def _load_prompt(name: str) -> str:
 
 def _build() -> LlmAgent:
     return LlmAgent(
-        name="audience_positioning_agent",
+        name="experiment_design_agent",
         model=settings.gemini_model,
-        instruction=_load_prompt("audience_agent"),
-        output_key=AUDIENCE_ANALYSIS,
+        instruction=_load_prompt("experiment_design_agent"),
+        output_key=EXPERIMENT_DESIGN,
         before_model_callback=content_safety_callback,
+        tools=[FunctionTool(execute_python)],
     )
 
 
-audience_agent = _build()
+experiment_design_agent = _build()
 
 
-def build_audience_agent() -> LlmAgent:
-    """Build a fresh (unparented) audience agent instance for use inside a LoopAgent."""
+def build_experiment_design_agent() -> LlmAgent:
+    """Build a fresh experiment design agent instance."""
     return _build()

@@ -29,9 +29,17 @@ You must anchor entirely on what the text LITERALLY says. Never reclassify the p
 6. Detect any genuine ambiguity or logical inconsistency in the description (not normal trade names).
 7. Assess the product's quality tier (budget / mid-range / premium / luxury).
 8. Infer the likely competitive landscape (2–3 competitor archetypes) relevant to the literal product.
+9. **Extract unit_cost_usd**: Find the per-unit production cost from the marketing brief. If explicitly stated (e.g., "$8.50 per unit"), extract the number. If given as a range, use the midpoint. If not stated, set to null and note it in assumptions.
+10. **Compliance assessment**: Identify whether this product falls into any regulated advertising category. Categories to check: health claims (disease treatment, medical benefit, weight loss), dietary supplements, pharmaceuticals, financial products, alcohol, tobacco/vaping, cannabis, children's products (primary audience under 13), gambling, political advertising. For each detected category, describe the specific concern and list any required disclaimers or restrictions.
 
 ## Additional User Context
 {extra_input}
+
+## Data Provenance Protocol
+Classify each substantive claim as:
+- FACT: Directly stated in the input data.
+- INFERENCE: Logically derived from stated facts.
+- ASSUMPTION: Reasonable guess made due to data gaps.
 
 ## Output Format
 Your response MUST be a valid JSON object and NOTHING ELSE. No markdown, no explanation outside the JSON.
@@ -41,6 +49,7 @@ Your response MUST be a valid JSON object and NOTHING ELSE. No markdown, no expl
   "product_type": "string — the primary product category derived from the description",
   "subcategory": "string — more specific product type",
   "quality_tier": "budget | mid-range | premium | luxury",
+  "unit_cost_usd": null,
   "visual_attributes": {
     "colors": ["string"],
     "materials": ["string"],
@@ -51,5 +60,22 @@ Your response MUST be a valid JSON object and NOTHING ELSE. No markdown, no expl
   "claims": ["string — each a distinct product claim or benefit"],
   "ambiguities": ["string — genuine logical contradictions only, or empty list"],
   "competitor_archetypes": ["string — brief description of competitor types for the literal product"],
-  "overall_summary": "string — 2–3 sentence synthesis of the product, anchored on its literal category"
+  "compliance_flags": {
+    "regulated_category": "none | health_claims | supplements | pharma | financial | alcohol | tobacco | cannabis | children | gambling | political",
+    "flag_details": ["string — specific regulatory concern, empty list if none"],
+    "severity": "none | low | medium | high",
+    "recommended_disclaimers": ["string — required or recommended disclaimers, empty list if none"]
+  },
+  "overall_summary": "string — 2–3 sentence synthesis of the product, anchored on its literal category",
+  "data_provenance": {
+    "facts": ["string — claims directly from input data"],
+    "inferences": ["string — derived conclusions with basis"],
+    "assumptions": ["string — reasonable guesses due to data gaps"]
+  },
+  "readiness_score": {
+    "completeness": 0.0,
+    "source_grounding": 0.0,
+    "confidence": 0.0,
+    "risk_level": "none | low | medium | high"
+  }
 }
