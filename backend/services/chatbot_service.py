@@ -239,14 +239,15 @@ async def stream_response(
 
     try:
         client = _get_genai_client()
-        async for chunk in client.aio.models.generate_content_stream(
+        stream = await client.aio.models.generate_content_stream(
             model=settings.gemini_model,
             contents=contents,
             config=genai_types.GenerateContentConfig(
                 max_output_tokens=1024,
                 temperature=0.3,
             ),
-        ):
+        )
+        async for chunk in stream:
             token = chunk.text or ""
             if token:
                 full_response_parts.append(token)
