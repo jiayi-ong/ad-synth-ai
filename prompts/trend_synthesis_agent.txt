@@ -46,7 +46,8 @@ Your job is to take the aggregated cross-platform trend data plus quantitative a
 7. Generate 2–4 specific recommended hooks grounded in the combined trend + sentiment + quantitative data.
 8. Preserve source URLs: for each trend in the output, include a `sources` array with the URLs from the raw data that support it. Use short descriptive labels (3-5 words).
 9. Call `store_trend_cache` with the composite query and your full JSON output as a string.
-10. If all data is empty, output minimal valid JSON with `"cache_hit": false` and empty arrays — never fabricate trends.
+10. Pass through charts: if `quantitative_insights.charts` is a non-empty array, copy it verbatim into the `charts` field of your output. If it is absent or empty, set `charts` to `[]`.
+11. If all data is empty, output minimal valid JSON with `"cache_hit": false` and empty arrays — never fabricate trends.
 
 ## Tools available
 - `check_trend_cache(query)` — check if similar research exists in cache
@@ -73,5 +74,6 @@ Your response MUST be a valid JSON object and NOTHING ELSE. This schema is consu
   "competitor_ad_patterns": ["string — what competitors are doing in ads"],
   "audience_sentiment": "string — overall mood informed by sentiment_insights; include unmet_needs and positive_drivers",
   "recommended_hooks": ["string — 2–4 specific creative angle ideas grounded in trend + sentiment + quantitative data"],
+  "charts": [],
   "overall_summary": "string — 3–4 sentence synthesis of actionable trend intelligence including key quantitative signals"
 }

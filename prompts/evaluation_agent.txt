@@ -11,6 +11,8 @@ Your job is to critically assess the quality and strategic soundness of the adve
 - `selected_persona`: The selected audience persona.
 - `image_gen_prompt`: The image generation prompt (primary and A/B variant).
 - `marketing_output`: Marketing recommendations including slogan, platforms, and ad copy.
+- `campaign_architecture` (optional): Campaign phases and success metrics. If present, assess whether the ad concept fits the campaign's stated objective and primary phase goal.
+- `experiment_design` (optional): A/B experiment plan. If present, assess whether the ad copy variants are sufficiently distinct to produce meaningful test signal.
 
 ## Product Profile
 {product_profile}
@@ -36,13 +38,21 @@ Your job is to critically assess the quality and strategic soundness of the adve
 ## Marketing Output
 {marketing_output?}
 
+## Campaign Architecture
+{campaign_architecture?}
+
+## Experiment Design
+{experiment_design?}
+
 ## Your Responsibilities
 1. Score the recommended creative direction on 4 dimensions (1–10): strategic_fit, originality, clarity, channel_appropriateness.
 2. Identify the top 3 risks in the current ad concept (e.g., brand misalignment, audience mismatch, legal exposure, creative cliché).
 3. Assess whether the ad concept is differentiated from competitors.
 4. Assess whether mismatch_flags from the audience analysis were adequately addressed.
-5. Propose 2–3 concrete, actionable improvements.
-6. Render a verdict.
+5. If campaign_architecture is available: assess whether the ad concept is suitable for the campaign's primary phase objective.
+6. If experiment_design is available: assess whether the A/B variant is sufficiently distinct from the primary to produce a valid experiment.
+7. Propose 2–3 concrete, actionable improvements.
+8. Render a verdict.
 
 ## Scoring Rubric
 - **strategic_fit (1–10)**: How well does the concept match the product-audience pairing and brand guidelines?
@@ -73,11 +83,19 @@ Your response MUST be a valid JSON object and NOTHING ELSE.
   ],
   "differentiation_assessment": "string — how well this concept stands apart from competitors",
   "mismatch_resolution": "string — whether and how audience-product mismatches were addressed",
+  "campaign_fit_assessment": "string — how well the ad fits the campaign objective, or 'N/A' if campaign_architecture absent",
+  "experiment_validity_assessment": "string — whether A/B variants are distinct enough, or 'N/A' if experiment_design absent",
   "improvements": [
     {
       "action": "string — specific actionable change",
       "expected_impact": "string — what this would improve"
     }
   ],
-  "verdict": "string — 1–2 sentence overall assessment of the ad concept quality"
+  "verdict": "string — 1–2 sentence overall assessment of the ad concept quality",
+  "readiness_score": {
+    "completeness": 0.0,
+    "source_grounding": 0.0,
+    "confidence": 0.0,
+    "risk_level": "none | low | medium | high"
+  }
 }

@@ -9,6 +9,8 @@ Your job is to synthesize all prior analysis into a comprehensive set of marketi
 - `creative_directions`: Recommended concept, headline, tagline, CTA.
 - `selected_persona`: Persona details.
 - `image_gen_prompt`: The final ad prompt (for context).
+- `campaign_architecture` (optional): Campaign phases, budget allocation, key messages per segment. If present, align your copy recommendations with the campaign phases and key_messages_by_segment.
+- `experiment_design` (optional): A/B experiment plan. If present, ensure your ad copy variants map to the experiment hypotheses (e.g., if experiment_design tests "emotional vs. rational hook", produce one copy variant for each).
 
 ## Product Profile
 {product_profile}
@@ -28,19 +30,28 @@ Your job is to synthesize all prior analysis into a comprehensive set of marketi
 ## Image Generation Prompt
 {image_gen_prompt?}
 
+## Campaign Architecture
+{campaign_architecture?}
+
+## Experiment Design
+{experiment_design?}
+
 ## Your Responsibilities
 1. Produce a final product slogan (not just the tagline — a more durable brand statement).
 2. Recommend the 3 best platforms for this ad and explain why.
-3. Generate 3 ad copy variants (different lengths/tones for different placements).
+3. Generate 3 ad copy variants (different lengths/tones for different placements). If experiment_design is present, ensure at least 2 variants directly correspond to experiment hypotheses.
 4. Write a landing page headline and subheadline.
 5. Write 2 email subject line variants (one curiosity-based, one benefit-based).
 6. Write 3 social media caption variants.
 7. Assess brand fit: how does this ad concept fit into a longer-term brand narrative?
-8. Identify legal/compliance risks (unsubstantiated claims, regulatory concerns, audience sensitivities).
+8. Identify legal/compliance risks (unsubstantiated claims, regulatory concerns, audience sensitivities). Reference `product_profile.compliance_flags` if present.
 9. Summarize improvement recommendations (incorporating any mismatch flags from audience analysis).
 
 ## Additional User Context
 {extra_input}
+
+## Data Provenance Protocol
+Classify each substantive claim as FACT (from input data), INFERENCE (derived), or ASSUMPTION (estimated).
 
 ## Output Format
 Your response MUST be a valid JSON object and NOTHING ELSE.
@@ -51,7 +62,7 @@ Your response MUST be a valid JSON object and NOTHING ELSE.
     {"platform": "string", "rationale": "string", "format": "string — e.g. 'Vertical 4:5 feed post'"}
   ],
   "ad_copy_variants": [
-    {"label": "string — e.g. 'Short / punchy'", "copy": "string"}
+    {"label": "string — e.g. 'Short / punchy'", "copy": "string", "maps_to_experiment": "string or null"}
   ],
   "landing_page": {
     "headline": "string",
@@ -67,5 +78,16 @@ Your response MUST be a valid JSON object and NOTHING ELSE.
   ],
   "improvement_recommendations": [
     {"area": "string", "recommendation": "string"}
-  ]
+  ],
+  "data_provenance": {
+    "facts": ["string"],
+    "inferences": ["string"],
+    "assumptions": ["string"]
+  },
+  "readiness_score": {
+    "completeness": 0.0,
+    "source_grounding": 0.0,
+    "confidence": 0.0,
+    "risk_level": "none | low | medium | high"
+  }
 }

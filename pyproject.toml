@@ -26,6 +26,8 @@ dependencies = [
   "pandas",
   "matplotlib",
   "numpy",
+  "scipy>=1.13",
+  "statsmodels>=0.14",
 ]
 
 [dependency-groups]

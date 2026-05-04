@@ -81,5 +81,11 @@ Your response MUST be a valid JSON object and NOTHING ELSE.
     "caption": "string — social caption if applicable"
   },
   "creative_style_notes": "string — stylistic adjustments for this platform (e.g., 'use lo-fi look', 'start mid-action')",
-  "no_adaptation_needed": false
+  "no_adaptation_needed": false,
+  "readiness_score": {
+    "completeness": 0.0,
+    "source_grounding": 0.0,
+    "confidence": 0.0,
+    "risk_level": "none | low | medium | high"
+  }
 }

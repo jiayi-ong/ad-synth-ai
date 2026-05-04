@@ -5,6 +5,7 @@ from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
+from sqlalchemy import text
 
 from backend.core.config import settings
 from backend.core.logger import setup_logging
@@ -45,6 +46,17 @@ async def lifespan(app: FastAPI):
     # Create all tables
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+
+    # Inline schema migrations: add new columns to existing tables without Alembic
+    if "sqlite" in settings.database_url:
+        async with engine.connect() as conn:
+            result = await conn.execute(text("PRAGMA table_info(products)"))
+            existing_cols = {row[1] for row in result.fetchall()}
+            if "unit_cost_usd" not in existing_cols:
+                await conn.execute(text("ALTER TABLE products ADD COLUMN unit_cost_usd REAL"))
+                await conn.commit()
+                _startup_logger.info("schema_migration: added unit_cost_usd to products table")
+
     yield
 
 

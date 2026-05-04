@@ -4,7 +4,7 @@ from google.adk.agents import LlmAgent
 
 from backend.core.config import settings
 from backend.pipeline.guardrails import content_safety_callback
-from backend.pipeline.state_keys import AUDIENCE_ANALYSIS
+from backend.pipeline.state_keys import CAMPAIGN_ARCHITECTURE
 
 
 def _load_prompt(name: str) -> str:
@@ -13,17 +13,17 @@ def _load_prompt(name: str) -> str:
 
 def _build() -> LlmAgent:
     return LlmAgent(
-        name="audience_positioning_agent",
+        name="campaign_architecture_agent",
         model=settings.gemini_model,
-        instruction=_load_prompt("audience_agent"),
-        output_key=AUDIENCE_ANALYSIS,
+        instruction=_load_prompt("campaign_architecture_agent"),
+        output_key=CAMPAIGN_ARCHITECTURE,
         before_model_callback=content_safety_callback,
     )
 
 
-audience_agent = _build()
+campaign_architecture_agent = _build()
 
 
-def build_audience_agent() -> LlmAgent:
-    """Build a fresh (unparented) audience agent instance for use inside a LoopAgent."""
+def build_campaign_architecture_agent() -> LlmAgent:
+    """Build a fresh campaign architecture agent instance."""
     return _build()

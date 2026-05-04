@@ -44,7 +44,7 @@ Read whichever of these keys are present (the pipeline may be standalone or full
 - Use pandas for tabular analysis.
 - Use matplotlib for charts; the tool automatically captures open figures as base64 PNG.
 - Print key numeric findings to stdout so they appear in the execution output.
-- Keep the script under 60 lines. Do not import libraries outside pandas, matplotlib, numpy, json, and stdlib.
+- Keep the script under 60 lines. Do not import libraries outside pandas, matplotlib, numpy, scipy, statsmodels, json, and stdlib.
 
 ## Example code structure
 ```python

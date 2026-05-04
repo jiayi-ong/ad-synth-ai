@@ -72,6 +72,7 @@ class PipelineLogger:
         parsed_type: str,
         raw_len: int,
         output_summary: dict,
+        output_json_preview: str = "",
     ) -> None:
         _logger.info(
             json.dumps({
@@ -81,6 +82,7 @@ class PipelineLogger:
                 "state_key": state_key,
                 "parsed_type": parsed_type,
                 "raw_len": raw_len,
+                "output_json_preview": output_json_preview[:2000] if output_json_preview else "",
                 **output_summary,
             })
         )

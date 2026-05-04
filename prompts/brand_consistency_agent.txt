@@ -58,5 +58,11 @@ Your response MUST be a valid JSON object and NOTHING ELSE.
     "visual_alignment": 0.8
   },
   "approved": true,
-  "consistency_notes": "string — brief overall assessment of brand-ad alignment"
+  "consistency_notes": "string — brief overall assessment of brand-ad alignment",
+  "readiness_score": {
+    "completeness": 0.0,
+    "source_grounding": 0.0,
+    "confidence": 0.0,
+    "risk_level": "none | low | medium | high"
+  }
 }
