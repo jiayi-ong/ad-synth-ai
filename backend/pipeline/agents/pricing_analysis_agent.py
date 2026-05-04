@@ -11,17 +11,13 @@ from typing import Any
 
 from google.adk.agents import LlmAgent
 from google.adk.tools import FunctionTool
-from google.genai import types as genai_types
 
 from backend.core.config import settings
+from backend.pipeline.agent_configs import TOOL_THINKING
 from backend.pipeline.guardrails import content_safety_callback
 from backend.pipeline.state_keys import PRICING_ANALYSIS
 from tools.code_tools import execute_python
 from tools.knowledge_store_tools import check_knowledge_store, store_knowledge_store
-
-_NO_THINKING = genai_types.GenerateContentConfig(
-    thinking_config=genai_types.ThinkingConfig(thinking_budget=0)
-)
 
 
 def _load_prompt(name: str) -> str:
@@ -35,7 +31,7 @@ def _build() -> LlmAgent:
         include_contents='none',
         instruction=_load_prompt("pricing_analysis_agent"),
         output_key=PRICING_ANALYSIS,
-        generate_content_config=_NO_THINKING,
+        generate_content_config=TOOL_THINKING,
         before_model_callback=content_safety_callback,
         tools=[
             FunctionTool(execute_python),

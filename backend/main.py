@@ -19,6 +19,22 @@ import backend.models  # noqa: F401
 
 _startup_logger = logging.getLogger(__name__)
 
+# (table, column, sqlite_type, pg_type) — covers all columns added after initial deployment
+_COLUMN_MIGRATIONS: list[tuple[str, str, str, str]] = [
+    ("products",       "unit_cost_usd",              "REAL",    "DOUBLE PRECISION"),
+    ("campaigns",      "brand_profile_id",            "VARCHAR", "VARCHAR"),
+    ("campaigns",      "target_channels",             "TEXT",    "TEXT"),
+    ("campaigns",      "campaign_notes",              "TEXT",    "TEXT"),
+    ("advertisements", "brand_profile_id",            "VARCHAR", "VARCHAR"),
+    ("advertisements", "target_channel",              "VARCHAR", "VARCHAR"),
+    ("advertisements", "evaluation_output",           "TEXT",    "TEXT"),
+    ("advertisements", "channel_adaptation_output",   "TEXT",    "TEXT"),
+    ("advertisements", "brand_consistency_score",     "REAL",    "DOUBLE PRECISION"),
+    ("advertisements", "text_variants",               "TEXT",    "TEXT"),
+    ("advertisements", "video_url",                   "VARCHAR", "VARCHAR"),
+    ("advertisements", "pipeline_state_history",      "TEXT",    "TEXT"),
+]
+
 
 def _asyncio_exception_handler(loop: asyncio.AbstractEventLoop, context: dict) -> None:
     """
@@ -49,14 +65,24 @@ async def lifespan(app: FastAPI):
         await conn.run_sync(Base.metadata.create_all)
 
     # Inline schema migrations: add new columns to existing tables without Alembic
-    if "sqlite" in settings.database_url:
-        async with engine.connect() as conn:
-            result = await conn.execute(text("PRAGMA table_info(products)"))
-            existing_cols = {row[1] for row in result.fetchall()}
-            if "unit_cost_usd" not in existing_cols:
-                await conn.execute(text("ALTER TABLE products ADD COLUMN unit_cost_usd REAL"))
+    is_sqlite = "sqlite" in settings.database_url
+    async with engine.connect() as conn:
+        for table, column, sqlite_type, pg_type in _COLUMN_MIGRATIONS:
+            if is_sqlite:
+                result = await conn.execute(text(f"PRAGMA table_info({table})"))
+                existing_cols = {row[1] for row in result.fetchall()}
+                missing = column not in existing_cols
+            else:
+                result = await conn.execute(text(
+                    "SELECT column_name FROM information_schema.columns "
+                    f"WHERE table_name = '{table}' AND column_name = '{column}'"
+                ))
+                missing = result.fetchone() is None
+            if missing:
+                col_type = sqlite_type if is_sqlite else pg_type
+                await conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {column} {col_type}"))
                 await conn.commit()
-                _startup_logger.info("schema_migration: added unit_cost_usd to products table")
+                _startup_logger.info("schema_migration: added %s to %s", column, table)
 
     yield
 
