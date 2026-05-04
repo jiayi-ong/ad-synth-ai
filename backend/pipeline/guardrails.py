@@ -26,7 +26,18 @@ def content_safety_callback(
     """
     Inspect the assembled prompt before it reaches the LLM.
     If blocked content is detected, return a structured error response instead.
+
+    DISABLED: The keyword blocklist causes high false-positive rates in practice.
+    The callback scans llm_request.contents, which includes accumulated prior agent
+    outputs — not just user inputs. Common marketing language ("killer pricing"),
+    supplement brand names (e.g. Naked Nutrition), and competitive analysis copy
+    routinely contain blocklist words, blocking all downstream agents in a cascade.
+    Re-enable by removing the early return once a more precise approach is implemented
+    (e.g. LLM-based classifier, user-input-only scanning, or a tighter allowlist).
     """
+    return None  # Disabled — see docstring above
+
+    # --- Disabled code below ---
     prompt_text = ""
     for content in llm_request.contents or []:
         for part in content.parts or []:
