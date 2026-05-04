@@ -1,15 +1,23 @@
 steps:
+  # Build image tagged with both commit SHA and latest
   - name: "gcr.io/cloud-builders/docker"
     args:
       - build
       - "-t"
       - "gcr.io/$PROJECT_ID/ad-synth-ai:$COMMIT_SHA"
+      - "-t"
+      - "gcr.io/$PROJECT_ID/ad-synth-ai:latest"
       - "."
 
   - name: "gcr.io/cloud-builders/docker"
     args:
       - push
       - "gcr.io/$PROJECT_ID/ad-synth-ai:$COMMIT_SHA"
+
+  - name: "gcr.io/cloud-builders/docker"
+    args:
+      - push
+      - "gcr.io/$PROJECT_ID/ad-synth-ai:latest"
 
   - name: "gcr.io/google.com/cloudsdktool/cloud-sdk"
     entrypoint: gcloud
@@ -24,8 +32,25 @@ steps:
       - "--memory=2Gi"
       - "--cpu=2"
       - "--timeout=600"
-      - "--set-env-vars=GOOGLE_GENAI_USE_VERTEXAI=TRUE,IMAGE_GEN_PROVIDER=vertexai"
-      - "--set-secrets=JWT_SECRET_KEY=jwt-secret:latest,GOOGLE_CSE_API_KEY=google-cse-key:latest,GCP_PROJECT_ID=gcp-project-id:latest"
+      # SSE connections are long-lived (~2-3 min per pipeline run); limit concurrency
+      # to prevent memory exhaustion under burst traffic.
+      - "--concurrency=10"
+      - "--max-instances=5"
+      - "--service-account=ad-synth-ai-runner@$PROJECT_ID.iam.gserviceaccount.com"
+      # Cloud SQL instance for persistent PostgreSQL storage.
+      # ADK sessions use ephemeral SQLite — fine since sessions are per-request.
+      - "--add-cloudsql-instances=$PROJECT_ID:us-central1:ad-synth-ai-db"
+      - >-
+        --set-env-vars=GOOGLE_GENAI_USE_VERTEXAI=TRUE,IMAGE_GEN_PROVIDER=vertexai,GCP_REGION=us-central1,GEMINI_MODEL=gemini-2.0-flash,LOG_TO_FILE=false,LOG_FORMAT=json,LOG_LEVEL=INFO,STORAGE_BACKEND=local,ADK_DATABASE_URL=sqlite+aiosqlite:///./data/adk_sessions.db
+      # All secrets must exist in Secret Manager before first deployment.
+      # DATABASE_URL contains the Cloud SQL connection string with credentials.
+      # Optional trend-research secrets can be created with placeholder values.
+      - >-
+        --set-secrets=JWT_SECRET_KEY=jwt-secret:latest,GCP_PROJECT_ID=gcp-project-id:latest,DATABASE_URL=database-url:latest,GOOGLE_CSE_API_KEY=google-cse-key:latest,GOOGLE_CSE_ID=google-cse-id:latest,YOUTUBE_API_KEY=youtube-api-key:latest,REDDIT_CLIENT_ID=reddit-client-id:latest,REDDIT_CLIENT_SECRET=reddit-client-secret:latest,TWITTER_BEARER_TOKEN=twitter-bearer-token:latest,SERPAPI_API_KEY=serpapi-key:latest,SHORTAPI_API_KEY=shortapi-key:latest
 
 images:
   - "gcr.io/$PROJECT_ID/ad-synth-ai:$COMMIT_SHA"
+  - "gcr.io/$PROJECT_ID/ad-synth-ai:latest"
+
+options:
+  logging: CLOUD_LOGGING_ONLY
