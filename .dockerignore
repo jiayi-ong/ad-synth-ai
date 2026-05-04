@@ -1,0 +1,41 @@
+# Secrets — never bake into image
+.env
+.env.*
+!.env.example
+
+# Runtime data — ephemeral, created at container startup
+data/
+logs/
+
+# Python build artifacts
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Dev tooling not needed in the image
+.git/
+.gitignore
+.gitattributes
+.claude/
+tests/
+docs/
+scripts/
+
+# Documentation (keep README for reference)
+*.md
+!README.md
+
+# IDE artifacts
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
