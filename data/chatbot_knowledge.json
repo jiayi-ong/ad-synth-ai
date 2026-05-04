@@ -1,0 +1,346 @@
+[
+  {
+    "id": "agent_product_profile",
+    "category": "agent_explanation",
+    "title": "Product Profile Agent",
+    "content": "The Product Profile agent is the first agent in the pipeline. It reads your product description and marketing brief, then extracts structured information: compliance requirements, core product features, unique selling points (USPs), problem-solution mapping, and a concise overall summary. Its output (product_profile) serves as the factual foundation for all downstream agents. If your product description is thin, this agent's output will be too — so detailed descriptions yield better results across the entire pipeline.",
+    "tags": ["product", "agent", "profile", "USP", "features", "first agent"],
+    "related_state_key": "product_profile"
+  },
+  {
+    "id": "agent_market_segmentation",
+    "category": "agent_explanation",
+    "title": "Market Segmentation Agent",
+    "content": "The Market Segmentation agent identifies and sizes potential customer segments for your product. It uses Python code execution (via scipy and numpy) to calculate TAM/SAM estimates and scores each segment on attractiveness. It runs inside a loop (up to 3 iterations) alongside the Audience Positioning agent, refining its output based on evaluator feedback. The final output (market_segmentation) includes segment profiles, sizing estimates, and attractiveness scores. If you see multiple iterations in the pipeline, that means the evaluator found ways to improve the segmentation.",
+    "tags": ["market", "segmentation", "TAM", "SAM", "segments", "audience", "loop"],
+    "related_state_key": "market_segmentation"
+  },
+  {
+    "id": "agent_audience_positioning",
+    "category": "agent_explanation",
+    "title": "Audience Positioning Agent",
+    "content": "The Audience Positioning agent takes the market segments identified by the Market Segmentation agent and develops detailed audience profiles. It determines which segments to prioritize, defines primary and secondary audiences, identifies their pain points and motivations, and maps your product's value propositions to each audience group. The output (audience_analysis) includes an overall summary, primary audience demographics, key pain points, and recommended messaging angles. This runs in a loop with Market Segmentation for iterative refinement.",
+    "tags": ["audience", "positioning", "demographics", "pain points", "messaging", "personas"],
+    "related_state_key": "audience_analysis"
+  },
+  {
+    "id": "agent_trend_research",
+    "category": "agent_explanation",
+    "title": "Trend Research Pipeline",
+    "content": "The Trend Research pipeline is a multi-agent sub-system (not a single agent). It extracts keywords from your product/audience context, then runs parallel data collection across 7 platforms: YouTube, Twitter/X, TikTok, Instagram, Reddit, general web, and Pinterest. After collection, it aggregates the data, performs quantitative analysis, conducts sentiment analysis, synthesizes findings into actionable insights, and validates the output quality. The final output (trend_research) includes trending content themes, platform-specific insights, sentiment patterns, and strategic recommendations. This is a non-critical agent — if it fails or times out, the pipeline continues.",
+    "tags": ["trends", "research", "social media", "YouTube", "TikTok", "Reddit", "Twitter", "Instagram", "sentiment", "content"],
+    "related_state_key": "trend_research"
+  },
+  {
+    "id": "agent_competitor_analysis",
+    "category": "agent_explanation",
+    "title": "Competitor Analysis Agent",
+    "content": "The Competitor Analysis agent searches for information about competing products and brands using web search APIs. It maps competitor messaging themes, identifies their positioning strategies, and highlights gaps (white space) where your product can differentiate. The output (competitor_analysis) includes competitor profiles, their key messaging angles, and specific opportunities for differentiation. Results are cached in the knowledge store so future campaigns on similar products benefit from prior research. This is a non-critical agent — pipeline continues if it fails.",
+    "tags": ["competitor", "analysis", "differentiation", "white space", "positioning", "competitive"],
+    "related_state_key": "competitor_analysis"
+  },
+  {
+    "id": "agent_pricing_analysis",
+    "category": "agent_explanation",
+    "title": "Pricing Analysis Agent",
+    "content": "The Pricing Analysis agent performs financial modeling on your product's pricing strategy. Using the unit cost you provide and industry benchmarks, it calculates break-even points, margin sensitivity, and optimal price points for different market segments. It uses Python code execution with numpy and matplotlib to generate quantitative pricing models. The output (pricing_analysis) includes recommended price ranges, margin analysis, and break-even curves. If you entered a unit cost when adding the product, this agent can produce much richer analysis. This is a non-critical agent.",
+    "tags": ["pricing", "analysis", "break-even", "margin", "financial", "unit cost", "revenue"],
+    "related_state_key": "pricing_analysis"
+  },
+  {
+    "id": "agent_creative_directions",
+    "category": "agent_explanation",
+    "title": "Creative Strategy Agent",
+    "content": "The Creative Strategy agent synthesizes all upstream research (product profile, audience analysis, trends, competitive landscape) to generate 3-5 distinct creative concepts. Each concept includes a creative angle, messaging hook, emotional appeal, visual direction, and a score reflecting its strategic strength. The output (creative_directions) is the strategic foundation for the final ad creatives. These are not finished ads — they are creative briefs that guide what the ad should communicate and feel like. The Prompt Engineering agent uses the highest-scoring concept to build the image generation prompt.",
+    "tags": ["creative", "strategy", "concepts", "hooks", "messaging", "emotional appeal", "visual direction", "score"],
+    "related_state_key": "creative_directions"
+  },
+  {
+    "id": "agent_selected_persona",
+    "category": "agent_explanation",
+    "title": "Persona Agent",
+    "content": "The Persona agent selects the most appropriate audience persona from your persistent persona library for the current campaign. It matches personas to the audience analysis and creative direction. You can exclude specific personas from the generation request. The output (selected_persona) is the chosen persona profile — including demographics, psychographics, motivations, and pain points — which shapes the tone and messaging of the final creative outputs. If no personas exist in your library, this agent creates a temporary persona based on the audience analysis.",
+    "tags": ["persona", "audience", "demographics", "psychographics", "library", "selection"],
+    "related_state_key": "selected_persona"
+  },
+  {
+    "id": "agent_image_gen_prompt",
+    "category": "agent_explanation",
+    "title": "Prompt Engineering Agent",
+    "content": "The Prompt Engineering agent crafts the detailed text prompt that will be sent to the image generation model (Vertex AI Imagen or Gemini image generation). It combines the selected creative direction, persona characteristics, product details, and platform requirements (if you selected a target channel) to produce an optimized image generation prompt. The output (image_gen_prompt) is the literal text sent to the image model. You can view this prompt in the agent tab to understand exactly what instructions produced your image, and use it as a starting point for retries or variants.",
+    "tags": ["prompt", "image", "generation", "Imagen", "Gemini", "creative direction", "text-to-image"],
+    "related_state_key": "image_gen_prompt"
+  },
+  {
+    "id": "agent_campaign_architecture",
+    "category": "agent_explanation",
+    "title": "Campaign Architecture Agent",
+    "content": "The Campaign Architecture agent designs the overall campaign structure: phased rollout plan, budget allocation across channels, targeting parameters, timeline, and success metrics. It translates the creative strategy and audience analysis into an actionable campaign plan. The output (campaign_architecture) is a structured campaign blueprint with phases (awareness, consideration, conversion), recommended budget splits, and KPIs to track. This is a non-critical agent — the pipeline continues if it fails.",
+    "tags": ["campaign", "architecture", "budget", "phases", "KPIs", "timeline", "targeting"],
+    "related_state_key": "campaign_architecture"
+  },
+  {
+    "id": "agent_experiment_design",
+    "category": "agent_explanation",
+    "title": "Experiment Design Agent",
+    "content": "The Experiment Design agent uses statistical power analysis (via scipy) to design A/B tests for your campaign. It calculates the sample sizes needed to detect meaningful differences in conversion rates, recommends test duration, and identifies which variables to test (creative, audience, placement, etc.). The output (experiment_design) includes a test matrix, sample size estimates, expected power, and a prioritized list of hypotheses to test. This is a non-critical agent — the pipeline continues if it fails.",
+    "tags": ["A/B test", "experiment", "statistical power", "sample size", "hypothesis", "testing"],
+    "related_state_key": "experiment_design"
+  },
+  {
+    "id": "agent_marketing_output",
+    "category": "agent_explanation",
+    "title": "Marketing Recommendation Agent",
+    "content": "The Marketing Recommendation agent synthesizes all pipeline outputs into final, actionable marketing recommendations. It produces ad copy variants, headline options, call-to-action suggestions, and channel-specific messaging guidance. The output (marketing_output) is one of the richest outputs in the pipeline — it includes multiple text variants for different ad formats, recommended posting cadence, and specific hooks tailored to the selected audience persona. This is a non-critical agent.",
+    "tags": ["marketing", "recommendations", "ad copy", "headlines", "CTA", "text variants", "messaging"],
+    "related_state_key": "marketing_output"
+  },
+  {
+    "id": "agent_evaluation_output",
+    "category": "agent_explanation",
+    "title": "Evaluation Agent",
+    "content": "The Evaluation agent critically reviews the entire campaign setup and outputs. It scores the creative strategy on multiple dimensions: audience fit, message clarity, differentiation, brand consistency, and predicted performance potential. It also flags potential issues and suggests specific improvements. The output (evaluation_output) includes a structured scorecard with per-dimension ratings and qualitative feedback. Use this as a diagnostic tool — low scores on a specific dimension tell you where to focus iteration. This is a non-critical agent.",
+    "tags": ["evaluation", "score", "critique", "quality", "assessment", "review", "improvement"],
+    "related_state_key": "evaluation_output"
+  },
+  {
+    "id": "agent_channel_adaptation",
+    "category": "agent_explanation",
+    "title": "Channel Adaptation Agent",
+    "content": "The Channel Adaptation agent tailors the creative outputs for specific ad platforms. If you selected a target channel (Meta, TikTok, or YouTube), this agent adapts the creative concept, copy, and format recommendations to match that platform's requirements and best practices. For example, TikTok ads require a strong hook in the first 3 seconds; Meta ads perform best with specific aspect ratios and clear CTAs. The output (channel_adaptation) includes platform-specific creative briefs, format specs, and copy variants. This is a non-critical agent.",
+    "tags": ["channel", "adaptation", "Meta", "TikTok", "YouTube", "platform", "format", "social media"],
+    "related_state_key": "channel_adaptation"
+  },
+  {
+    "id": "agent_brand_consistency",
+    "category": "agent_explanation",
+    "title": "Brand Consistency Agent",
+    "content": "The Brand Consistency agent is the final quality gate. It checks all generated outputs against your Brand Brain (stored brand profile) to ensure messaging, tone, and visual direction align with your brand guidelines. It produces a brand consistency score (0-1) and flags any deviations. If you have a Brand Profile set up with detailed guidelines, this agent becomes much more valuable. The output (brand_consistency) includes the score, a list of any detected inconsistencies, and corrective suggestions. This is a non-critical agent.",
+    "tags": ["brand", "consistency", "score", "guidelines", "quality", "check", "brand voice"],
+    "related_state_key": "brand_consistency"
+  },
+  {
+    "id": "howto_create_campaign",
+    "category": "ui_howto",
+    "title": "How to Create a Campaign",
+    "content": "To create a campaign, navigate to the Campaigns page (the home page after login). Click the 'New Campaign' button. Enter a campaign name and optional notes. You can optionally link a Brand Profile to enforce brand consistency. After creating the campaign, you'll be taken to the campaign detail page where you can add products and personas. A campaign acts as a container — it holds your products, personas, and all the ads you generate. You can have multiple campaigns for different product lines or marketing initiatives.",
+    "tags": ["campaign", "create", "new", "setup", "how to"],
+    "related_state_key": null
+  },
+  {
+    "id": "howto_add_product",
+    "category": "ui_howto",
+    "title": "How to Add a Product",
+    "content": "To add a product, go to the campaign detail page (click on a campaign from the Campaigns list). Under the 'Products' section, click 'Add Product'. Fill in the product name, description (be as detailed as possible — this is the primary input for the AI pipeline), and optionally a unit cost (used by the Pricing Analysis agent). You can also upload product images; these are passed directly to the image generation model as visual reference. After saving, the product appears in the list and can be selected when generating ads.",
+    "tags": ["product", "add", "create", "description", "image upload", "unit cost", "how to"],
+    "related_state_key": null
+  },
+  {
+    "id": "howto_add_persona",
+    "category": "ui_howto",
+    "title": "How to Add a Persona",
+    "content": "Personas represent your target audience profiles. To add a persona, go to the campaign detail page and find the 'Personas' section. Click 'Add Persona'. Enter a name, demographic details, psychographic traits, pain points, and motivations. Detailed personas produce better-targeted ad outputs. Personas are reusable across campaigns — they are stored in your library. During generation, you can select which personas to include or exclude. If you exclude a persona, the system won't target that audience segment in this run.",
+    "tags": ["persona", "add", "audience", "demographics", "psychographics", "how to"],
+    "related_state_key": null
+  },
+  {
+    "id": "howto_generate_ad",
+    "category": "ui_howto",
+    "title": "How to Generate an Ad",
+    "content": "To generate an ad, navigate to a campaign and click 'Generate Ad' (or go to the Generate page). Select the product you want to advertise. Optionally select target personas, a target channel (Meta/TikTok/YouTube), and add a marketing brief with specific goals, tone, or constraints. Click 'Generate'. The 16-agent pipeline runs and streams results in real time — you'll see each agent complete and its output appear in the tabs. The full run takes 1-3 minutes. Once complete, your generated image and text variants appear at the top. You can then retry the image, generate an A/B variant, or re-run specific agents.",
+    "tags": ["generate", "ad", "generation", "pipeline", "how to", "start", "create ad"],
+    "related_state_key": null
+  },
+  {
+    "id": "howto_expert_mode",
+    "category": "ui_howto",
+    "title": "How to Use Expert Mode",
+    "content": "Expert Mode reveals the full pipeline details that are hidden in Simple Mode. Toggle it using the 'Simple/Expert' button in the navigation bar. In Expert Mode, you can see: all 16 agent output tabs with their raw structured data, the cost breakdown per agent (token usage and estimated API cost), the image generation prompt used, and individual 'Re-run' buttons for each agent stage. Expert Mode is designed for power users who want to understand what the AI is doing, debug outputs, or selectively re-run parts of the pipeline.",
+    "tags": ["expert mode", "simple mode", "toggle", "agent tabs", "costs", "debug", "how to"],
+    "related_state_key": null
+  },
+  {
+    "id": "howto_rerun_stage",
+    "category": "ui_howto",
+    "title": "How to Re-run a Specific Agent Stage",
+    "content": "In Expert Mode, each agent tab has a 'Re-run' button. Clicking it re-runs that specific agent and all agents that depend on its output (downstream agents). This is useful if you want to tweak one part of the pipeline without redoing everything. For example, re-running the Creative Strategy agent will also re-run the Prompt Engineering agent and image generation. You can also add 'extra input' — additional instructions — to guide the re-run differently. Note: re-running an agent invalidates and clears all downstream outputs until they re-complete.",
+    "tags": ["rerun", "stage", "re-run", "agent", "expert mode", "iterate", "how to"],
+    "related_state_key": null
+  },
+  {
+    "id": "howto_ab_variant",
+    "category": "ui_howto",
+    "title": "How to Generate an A/B Variant",
+    "content": "After a successful generation, you can create an A/B variant — an alternative version that tests a different creative approach. On the generation result page, click 'Generate A/B Variant'. The system uses the same base inputs but produces a variation of the image generation prompt to create a contrasting creative. The variant image appears alongside the original. This is designed for performance testing: run both variants in your ad platform and see which performs better.",
+    "tags": ["A/B", "variant", "test", "alternative", "creative", "how to"],
+    "related_state_key": null
+  },
+  {
+    "id": "howto_retry_image",
+    "category": "ui_howto",
+    "title": "How to Retry Image Generation",
+    "content": "If the generated image is not to your liking, you can retry image generation without re-running the entire pipeline. On the result page, click 'Retry Image'. The system will reuse the existing image generation prompt (from the Prompt Engineering agent) and request a new image from the provider. Since image generation models have inherent randomness, you'll get a different result each time with the same prompt. If you want a fundamentally different image, consider re-running the Creative Strategy or Prompt Engineering agent first.",
+    "tags": ["retry", "image", "regenerate", "how to", "image generation"],
+    "related_state_key": null
+  },
+  {
+    "id": "howto_brand_profile",
+    "category": "ui_howto",
+    "title": "How to Set Up a Brand Profile (Brand Brain)",
+    "content": "The Brand Brain is a persistent store of your company and brand information. Navigate to 'Brand Profiles' from the navigation bar. Click 'New Brand Profile' and fill in: company name, brand mission, brand voice and tone guidelines, visual style guidelines, and any brand restrictions. You can also add brand-specific products and personas that are shared across all campaigns. Once created, link the brand profile to a campaign in the campaign settings. The Brand Consistency agent will then evaluate all outputs against your brand guidelines.",
+    "tags": ["brand", "profile", "brand brain", "setup", "guidelines", "voice", "how to"],
+    "related_state_key": null
+  },
+  {
+    "id": "howto_research_hub",
+    "category": "ui_howto",
+    "title": "How to Use the Research Hub",
+    "content": "The Research Hub lets you run standalone trend and competitor research without generating a full ad. Navigate to 'Research' from the navigation bar. Enter a product description and optionally a target audience. Select the research type: Trends (social media trend data across 7 platforms), Competitors (competitive landscape analysis), or Both. Click 'Run Research'. Results stream in as agents complete. Research results are cached so future generations on similar products can retrieve prior insights automatically, saving time and API costs.",
+    "tags": ["research", "hub", "trends", "competitors", "standalone", "how to"],
+    "related_state_key": null
+  },
+  {
+    "id": "howto_ad_library",
+    "category": "ui_howto",
+    "title": "How to Use the Ad Library",
+    "content": "The Ad Library is a browsable archive of all ads you've generated. Navigate to 'Library' from the navigation bar. You can view past ads, see their generated images, review agent outputs, and check their status (completed, partial failure, failed). Clicking on an ad takes you to its detailed result view where you can re-run agents or retry image generation. Use the library to compare different creative directions across campaigns or refer back to outputs from previous runs.",
+    "tags": ["library", "archive", "past ads", "history", "browse", "how to"],
+    "related_state_key": null
+  },
+  {
+    "id": "howto_target_channel",
+    "category": "ui_howto",
+    "title": "How to Select a Target Channel",
+    "content": "When generating an ad, you can specify a target channel: Meta (Facebook/Instagram), TikTok, or YouTube. If you select a channel, the Channel Adaptation agent will tailor the creative outputs to that platform's requirements and best practices. For Meta: static image formats, clear CTAs, audience targeting parameters. For TikTok: strong opening hook within 3 seconds, vertical format, trending audio notes. For YouTube: longer-form narrative, thumbnail optimization, skippable vs non-skippable considerations. Leaving the channel unselected produces general-purpose ad recommendations.",
+    "tags": ["channel", "Meta", "TikTok", "YouTube", "platform", "target", "how to"],
+    "related_state_key": null
+  },
+  {
+    "id": "output_evaluation_score",
+    "category": "output_explanation",
+    "title": "Understanding the Evaluation Score",
+    "content": "The Evaluation agent produces a scorecard with multiple dimensions. Each dimension is rated on a scale (typically 1-5 or 0-1). Key dimensions include: Audience Fit (how well the creative targets the intended audience), Message Clarity (how clear and compelling the core message is), Differentiation (how distinct the approach is from competitors), Brand Consistency (alignment with brand guidelines if a brand profile exists), and Performance Potential (predicted effectiveness based on best practices). A low score on one dimension is a signal to iterate on that specific aspect — you can re-run the relevant upstream agent with additional guidance.",
+    "tags": ["evaluation", "score", "rating", "dimensions", "quality", "audience fit", "differentiation"],
+    "related_state_key": "evaluation_output"
+  },
+  {
+    "id": "output_brand_consistency_score",
+    "category": "output_explanation",
+    "title": "Understanding the Brand Consistency Score",
+    "content": "The brand_consistency_score is a number between 0 and 1 (1 = perfect alignment). It reflects how closely the generated ad outputs match your stored Brand Profile guidelines. A score above 0.8 is generally considered good. Below 0.6 suggests meaningful deviations — check the brand_consistency agent output tab for specific flags. Common causes of low scores: the product description uses language inconsistent with brand voice, or the creative direction conflicts with your visual guidelines. If you don't have a Brand Profile set up, this score is less meaningful.",
+    "tags": ["brand consistency", "score", "brand profile", "guidelines", "0 to 1", "quality"],
+    "related_state_key": "brand_consistency"
+  },
+  {
+    "id": "output_pipeline_state",
+    "category": "output_explanation",
+    "title": "What is Pipeline State?",
+    "content": "Pipeline state is the shared memory that all 16 agents read from and write to during a generation run. Each agent reads its required inputs from the state and writes its output to a specific key. For example, the Market Segmentation agent writes to 'market_segmentation', which the Audience Positioning agent then reads. The full pipeline state is stored in the database after each run and is what powers all the agent output tabs you see in Expert Mode. In the API, the pipeline_state field of an advertisement is a JSON dictionary mapping each state key to its agent output.",
+    "tags": ["pipeline", "state", "shared memory", "architecture", "agent outputs", "JSON"],
+    "related_state_key": null
+  },
+  {
+    "id": "output_cost_summary",
+    "category": "output_explanation",
+    "title": "Understanding the Cost Summary",
+    "content": "In Expert Mode, after generation completes, a cost summary panel shows the estimated API cost for the run. This includes: per-agent token counts (input tokens + output tokens), estimated cost per agent based on the Gemini model pricing, total pipeline cost, and image generation cost. These are estimates based on approximate token counts and current model pricing. The cost data helps you understand which agents are most expensive (trend research and market segmentation tend to have higher input token counts due to the data they process).",
+    "tags": ["cost", "pricing", "tokens", "API cost", "Gemini", "budget", "billing"],
+    "related_state_key": null
+  },
+  {
+    "id": "output_text_variants",
+    "category": "output_explanation",
+    "title": "Understanding Text Variants",
+    "content": "Text variants are multiple versions of ad copy generated by the Marketing Recommendation agent. They include different headlines, body copy options, and calls-to-action. These are meant for A/B testing — run different variants to see which copy resonates most with your audience. Each variant is tailored to the selected persona and creative direction. You'll typically see 3-5 variants. In Expert Mode, the Marketing Output tab shows the full structured output including variant reasoning.",
+    "tags": ["text variants", "ad copy", "headlines", "CTA", "marketing", "copywriting"],
+    "related_state_key": "marketing_output"
+  },
+  {
+    "id": "output_creative_scores",
+    "category": "output_explanation",
+    "title": "Understanding Creative Direction Scores",
+    "content": "The Creative Strategy agent generates 3-5 creative concepts, each with a score. The score reflects the strategic strength of that creative direction given your product, audience, and competitive context. Higher scores indicate concepts that better differentiate your product, resonate with the target audience, and align with current trends. The highest-scoring concept is automatically selected for the image generation prompt. In Expert Mode, the Creative Directions tab shows all concepts and their scores, so you can understand why a particular creative angle was chosen.",
+    "tags": ["creative", "score", "concepts", "strategy", "ranking", "selection"],
+    "related_state_key": "creative_directions"
+  },
+  {
+    "id": "faq_pipeline_failed",
+    "category": "faq",
+    "title": "What happens if the pipeline fails or partially fails?",
+    "content": "The pipeline is designed for graceful degradation. Most agents (9 out of 16) are 'non-critical' — if they fail, the pipeline continues and marks itself as 'partial_failure' rather than fully failed. The UI will still display all outputs from agents that did complete. Critical agents (product profile, market segmentation, audience positioning, creative strategy, persona, prompt engineering) must succeed for the run to produce meaningful results. If a critical agent fails, the run is marked 'failed'. You can attempt to re-run failed or non-critical agents individually using the Re-run button in Expert Mode.",
+    "tags": ["failure", "error", "partial failure", "graceful", "status", "non-critical", "critical"],
+    "related_state_key": null
+  },
+  {
+    "id": "faq_pipeline_time",
+    "category": "faq",
+    "title": "How long does generation take?",
+    "content": "A full pipeline run typically takes 1-3 minutes. The majority of the time is spent in the parallel research phase (Trend Research pipeline + Competitor Analysis run simultaneously, which is why this phase can take 45-90 seconds). The image generation step adds an additional 10-30 seconds depending on the provider. You'll see progress in real time as each agent completes — the UI streams events so you see partial results immediately. If the pipeline seems stuck, check the agent progress indicators — a spinning indicator means that agent is still running.",
+    "tags": ["time", "duration", "how long", "wait", "speed", "latency"],
+    "related_state_key": null
+  },
+  {
+    "id": "faq_image_quality",
+    "category": "faq",
+    "title": "How can I get better image results?",
+    "content": "Image quality is influenced primarily by the image generation prompt created by the Prompt Engineering agent. To improve results: (1) Provide a richer product description — more detail about visuals, style, and context helps the agent write a better prompt. (2) Upload product images — these are passed directly to the image model as visual reference. (3) Specify a target channel — platform-specific guidance narrows the visual style. (4) Use Retry Image for different random variations. (5) In Expert Mode, re-run the Creative Strategy or Prompt Engineering agent with extra input guiding it toward a specific visual style.",
+    "tags": ["image", "quality", "improve", "better results", "prompt", "visual", "tips"],
+    "related_state_key": null
+  },
+  {
+    "id": "faq_cancel_generation",
+    "category": "faq",
+    "title": "Can I cancel a generation in progress?",
+    "content": "Yes. While a generation is running, a 'Cancel' button appears on the generation page. Clicking it sends a cancellation signal to the backend, which interrupts the pipeline at the next safe checkpoint. Agents that have already completed retain their outputs. The ad status is set to 'partial_failure'. You can then re-run any remaining agents individually from Expert Mode, or start a fresh generation run.",
+    "tags": ["cancel", "stop", "interrupt", "generation", "in progress"],
+    "related_state_key": null
+  },
+  {
+    "id": "faq_what_is_brand_brain",
+    "category": "faq",
+    "title": "What is the Brand Brain?",
+    "content": "The Brand Brain is AdSynth's term for the persistent Brand Profile store. It's a hierarchical structure that holds your company identity, brand guidelines, brand voice, visual style rules, and approved personas. Once set up, it acts as a constraint layer that the Brand Consistency agent references to ensure every generated ad aligns with your brand. The Brand Brain is separate from individual campaigns — one Brand Profile can be linked to multiple campaigns, so your brand standards are enforced consistently across all your advertising work.",
+    "tags": ["brand brain", "brand profile", "persistent", "guidelines", "identity", "consistency"],
+    "related_state_key": null
+  },
+  {
+    "id": "faq_simple_vs_expert",
+    "category": "faq",
+    "title": "What is the difference between Simple Mode and Expert Mode?",
+    "content": "Simple Mode shows only the key outputs: the generated ad image, the marketing recommendations, and the evaluation summary. It hides the intermediate agent details to keep the interface clean for quick use. Expert Mode reveals everything: all 16 agent output tabs with structured data, the image generation prompt, token usage and estimated cost per agent, and individual Re-run buttons for each stage. Expert Mode is best for understanding what the AI did, debugging unexpected outputs, or iterating on specific pipeline stages without re-running everything.",
+    "tags": ["simple mode", "expert mode", "difference", "toggle", "modes", "UI"],
+    "related_state_key": null
+  },
+  {
+    "id": "faq_personas_excluded",
+    "category": "faq",
+    "title": "What does excluding a persona do?",
+    "content": "When you generate an ad, you can specify personas to exclude from targeting. Excluded persona IDs are passed to the Persona agent, which will not select any of them as the primary persona for this run. This is useful when you want to generate ads targeting a specific audience segment while intentionally avoiding others — for example, generating separate campaigns for different demographics. The excluded personas are listed in the generation configuration and stored with the advertisement record.",
+    "tags": ["persona", "exclude", "targeting", "audience", "demographics"],
+    "related_state_key": null
+  },
+  {
+    "id": "faq_research_cache",
+    "category": "faq",
+    "title": "What is the research cache and why does it matter?",
+    "content": "The research cache stores the results of trend and competitor research so they can be reused in future runs on similar products. When the Trend Research or Competitor Analysis agents run, they first check the cache using semantic similarity search. If a similar query was researched recently, they retrieve the cached result instead of making fresh API calls. This significantly reduces latency (seconds instead of minutes for the research phase) and API costs. The Research Hub page shows cached results and lets you force-refresh if you need up-to-date data.",
+    "tags": ["cache", "research", "speed", "RAG", "vector", "reuse", "efficiency"],
+    "related_state_key": null
+  },
+  {
+    "id": "faq_image_providers",
+    "category": "faq",
+    "title": "What image generation providers are supported?",
+    "content": "AdSynth supports four image generation providers, configured by the platform administrator: (1) Vertex AI Imagen — Google's Imagen 3 model for high-quality photorealistic images; (2) Gemini image generation — uses the Gemini model's native image generation capability; (3) ShortAPI — a third-party provider supporting multiple image models; (4) Mock — returns a placeholder image for local testing without API costs. The active provider is set at deployment time. As a user, you don't choose the provider — the platform uses whatever is configured. The Retry Image button always uses the current active provider.",
+    "tags": ["image", "provider", "Vertex AI", "Imagen", "Gemini", "ShortAPI", "mock", "generation"],
+    "related_state_key": null
+  },
+  {
+    "id": "faq_marketing_brief",
+    "category": "faq",
+    "title": "What should I put in the Marketing Brief?",
+    "content": "The Marketing Brief is an optional free-text field that gives the AI additional context beyond the product description. Good things to include: specific campaign goals (e.g., 'drive trial downloads', 'increase brand awareness among 25-34 year olds'), tone requirements (e.g., 'professional and trustworthy, not casual'), constraints (e.g., 'do not mention competitor brands', 'focus on the environmental benefit'), seasonal context (e.g., 'holiday promotion'), or specific value propositions to emphasize. The more specific your brief, the more targeted the pipeline outputs. Leave it empty for a general-purpose campaign.",
+    "tags": ["marketing brief", "brief", "input", "context", "goals", "tone", "constraints"],
+    "related_state_key": null
+  }
+]

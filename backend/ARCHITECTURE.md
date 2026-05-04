@@ -23,7 +23,8 @@ backend/
 │   ├── persona.py
 │   ├── advertisement.py
 │   ├── brand_profile.py
-│   └── research_cache.py
+│   ├── research_cache.py
+│   └── chat_session.py     # One row per user; messages stored as JSON list
 ├── schemas/            # Pydantic v2 schemas for request/response validation
 │   ├── auth.py
 │   ├── brand_profile.py
@@ -32,7 +33,8 @@ backend/
 │   ├── persona.py
 │   ├── advertisement.py
 │   ├── research.py
-│   └── evaluate.py
+│   ├── evaluate.py
+│   └── chatbot.py          # ChatMessageRequest, ChatSessionResponse, ClearSessionResponse
 ├── routers/            # FastAPI APIRouter — one file per domain
 │   ├── auth.py         # POST /auth/register, POST /auth/login
 │   ├── brands.py       # CRUD /brands
@@ -42,7 +44,8 @@ backend/
 │   ├── advertisements.py  # CRUD /advertisements
 │   ├── generation.py   # POST /generate (SSE), rerun-stage, retry-image, cancel, ab-variant
 │   ├── evaluate.py     # POST /evaluate
-│   └── research.py     # GET /research (cached trend data)
+│   ├── research.py     # GET /research (cached trend data)
+│   └── chatbot.py      # POST /chat/session, POST /chat/message (SSE), DELETE /chat/session
 ├── services/           # Business logic decoupled from HTTP layer
 │   ├── auth_service.py
 │   ├── brand_service.py
@@ -50,7 +53,9 @@ backend/
 │   ├── product_service.py
 │   ├── persona_service.py
 │   ├── advertisement_service.py
-│   └── image_service.py       # Multi-provider image generation factory
+│   ├── image_service.py       # Multi-provider image generation factory
+│   ├── chatbot_service.py     # Guardrails, context assembly, Gemini streaming
+│   └── knowledge_base.py      # In-memory KB embeddings + cosine similarity search
 └── pipeline/           # Agent pipeline (see pipeline/ARCHITECTURE.md)
 ```
 

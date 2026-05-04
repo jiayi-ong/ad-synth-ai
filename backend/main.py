@@ -12,7 +12,7 @@ from backend.core.config import settings
 from backend.core.logger import setup_logging
 from backend.core.logging_middleware import ObservabilityMiddleware
 from backend.db.base import Base, engine
-from backend.routers import advertisements, auth, brands, campaigns, evaluate, generation, personas, products, research
+from backend.routers import advertisements, auth, brands, campaigns, chatbot, evaluate, generation, personas, products, research
 
 # Import all models so SQLAlchemy registers them before create_all
 import backend.models  # noqa: F401
@@ -60,9 +60,16 @@ async def lifespan(app: FastAPI):
     Path("data").mkdir(exist_ok=True)
     settings.upload_dir.mkdir(parents=True, exist_ok=True)
     Path(settings.log_dir).mkdir(exist_ok=True)
-    # Create all tables
+    # Create all tables (includes ChatSession added for chatbot feature)
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+
+    # Initialise chatbot knowledge base (embeddings loaded or generated at startup)
+    from backend.services import knowledge_base as _kb
+    try:
+        _kb.initialise(embed_on_startup=settings.chatbot_embed_on_startup)
+    except Exception as _kb_err:
+        _startup_logger.warning("chatbot knowledge base init failed (chatbot will still work, KB search disabled): %s", _kb_err)
 
     # Inline schema migrations: add new columns to existing tables without Alembic
     is_sqlite = "sqlite" in settings.database_url
@@ -101,6 +108,7 @@ app.include_router(advertisements.router)
 app.include_router(generation.router)
 app.include_router(evaluate.router)
 app.include_router(research.router)
+app.include_router(chatbot.router)
 
 # Serve frontend at /app (added after other routes to avoid catch-all conflicts)
 frontend_dir = Path(__file__).parent.parent / "frontend"

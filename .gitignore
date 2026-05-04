@@ -20,6 +20,9 @@ uv.lock
 # Runtime data (local only)
 data/
 !data/.gitkeep
+# Chatbot knowledge base (static source data and precomputed vectors)
+!data/chatbot_knowledge.json
+!data/chatbot_knowledge_vectors.npy
 
 # IDE
 .vscode/
