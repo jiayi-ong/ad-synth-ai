@@ -1,6 +1,6 @@
 """
 Multi-namespace knowledge store using sqlite-vec for vector similarity search.
-Embeddings are generated using Gemini text-embedding-004 (768 dimensions).
+Embeddings are generated using Gemini gemini-embedding-001 (3072 dimensions).
 
 Namespaces:
   - "competitor"           competitor profiles, pricing, positioning
@@ -15,7 +15,7 @@ from pathlib import Path
 logger = logging.getLogger(__name__)
 
 _STORE_DB = Path("data/knowledge_store.db")
-_DIM = 768
+_DIM = 3072
 _SIMILARITY_THRESHOLD = 0.82
 
 _VALID_NAMESPACES = {"competitor", "market_research", "pricing_benchmarks"}
@@ -52,14 +52,16 @@ def _embed(text: str) -> list[float] | None:
     try:
         from google import genai
         from backend.core.config import settings
-        client = genai.Client(
-            api_key=settings.google_api_key if not settings.google_genai_use_vertexai else None,
-            vertexai=settings.google_genai_use_vertexai,
-            project=settings.gcp_project_id or None,
-            location=settings.gcp_region,
-        )
+        if settings.google_genai_use_vertexai:
+            client = genai.Client(
+                vertexai=True,
+                project=settings.gcp_project_id,
+                location=settings.gcp_region,
+            )
+        else:
+            client = genai.Client(api_key=settings.google_api_key)
         resp = client.models.embed_content(
-            model="text-embedding-004",
+            model="gemini-embedding-001",
             contents=[text],
         )
         return resp.embeddings[0].values
@@ -68,29 +70,34 @@ def _embed(text: str) -> list[float] | None:
         return None
 
 
+_CACHE_MISS_SENTINEL = "NO_CACHED_RESULT"
+
+
 def check_knowledge_store(
     query: str,
     namespace: str = "market_research",
-) -> str | None:
+) -> str:
     """
     Check if similar content exists in the knowledge store for the given namespace.
     Valid namespaces: 'competitor', 'market_research', 'pricing_benchmarks'.
-    Returns cached result string if found above similarity threshold, else None.
+    Returns cached result string if found above similarity threshold, or the
+    string 'NO_CACHED_RESULT' if not found (never returns None, to avoid
+    confusing the LLM with a null function response).
     """
     if namespace not in _VALID_NAMESPACES:
         logger.warning("check_knowledge_store: unknown namespace '%s'", namespace)
-        return None
+        return _CACHE_MISS_SENTINEL
     try:
         vec = _embed(query)
         if not vec:
-            return None
+            return _CACHE_MISS_SENTINEL
         conn = _get_conn()
         rows = conn.execute(
             "SELECT rowid, distance FROM ks_vectors WHERE embedding MATCH ? AND k = 5",
             [json.dumps(vec)],
         ).fetchall()
         if not rows:
-            return None
+            return _CACHE_MISS_SENTINEL
         best_match = None
         best_similarity = 0.0
         for rowid, dist in rows:
@@ -108,10 +115,11 @@ def check_knowledge_store(
                 "Knowledge store HIT ns=%s query=%.60s sim=%.3f",
                 namespace, query, best_similarity,
             )
-        return best_match
+            return best_match
+        return _CACHE_MISS_SENTINEL
     except Exception as e:
         logger.warning("check_knowledge_store error: %s", e)
-    return None
+    return _CACHE_MISS_SENTINEL
 
 
 def store_knowledge_store(

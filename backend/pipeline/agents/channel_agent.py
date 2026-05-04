@@ -14,6 +14,7 @@ def _load_prompt(name: str) -> str:
 channel_agent = LlmAgent(
     name="channel_adaptation_agent",
     model=settings.gemini_model,
+        include_contents='none',
     instruction=_load_prompt("channel_agent"),
     output_key=CHANNEL_ADAPTATION,
     before_model_callback=content_safety_callback,

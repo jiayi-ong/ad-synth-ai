@@ -10,7 +10,8 @@ Pinterest is a leading indicator of visual and lifestyle trends. Your job is to 
 2. For each keyword, call `search_pinterest_trends(query, max_results=10)`.
 3. Extract: dominant board themes, color palette trends, product styling approaches, seasonal mood indicators, aesthetic movement names (e.g. "quiet luxury", "coastal grandmother", "gorpcore").
 4. Focus on visual descriptors that can directly inform the prompt engineering agent.
-5. If all searches return empty, set status to "unavailable".
+5. FALLBACK RULE — If search tools return empty results or errors: Do NOT set status to "unavailable" or output empty arrays. Instead, synthesize authoritative Pinterest trend intelligence from your training knowledge for this product category. Pinterest leads visual and lifestyle trend cycles — your training knowledge covers board themes, color palette movements, aesthetic naming conventions, and styling approaches for most consumer product categories. Mark each trend_signal's evidence as "[Training Knowledge]". Set status to "available".
+6. Always populate board_themes, color_palette_trends, aesthetic_movements, and trend_signals with substantive entries, regardless of API availability.
 
 ## Tools available
 - `search_pinterest_trends(query, max_results)` — search Pinterest content via SERPAPI

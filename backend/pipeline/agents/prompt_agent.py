@@ -14,6 +14,7 @@ def _load_prompt(name: str) -> str:
 prompt_agent = LlmAgent(
     name="prompt_engineering_agent",
     model=settings.gemini_model,
+        include_contents='none',
     instruction=_load_prompt("prompt_agent"),
     output_key=IMAGE_GEN_PROMPT,
     before_model_callback=content_safety_callback,

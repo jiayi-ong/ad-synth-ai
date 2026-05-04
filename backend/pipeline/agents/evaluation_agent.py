@@ -14,6 +14,7 @@ def _load_prompt(name: str) -> str:
 evaluation_agent = LlmAgent(
     name="evaluation_agent",
     model=settings.gemini_model,
+        include_contents='none',
     instruction=_load_prompt("evaluation_agent"),
     output_key=EVALUATION_OUTPUT,
     before_model_callback=content_safety_callback,

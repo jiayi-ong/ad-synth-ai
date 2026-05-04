@@ -14,6 +14,7 @@ def _load_prompt(name: str) -> str:
 creative_agent = LlmAgent(
     name="creative_strategy_agent",
     model=settings.gemini_model,
+        include_contents='none',
     instruction=_load_prompt("creative_agent"),
     output_key=CREATIVE_DIRECTIONS,
     before_model_callback=content_safety_callback,

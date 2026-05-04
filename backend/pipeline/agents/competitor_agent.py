@@ -29,6 +29,7 @@ def _build_tools() -> list:
 competitor_agent = LlmAgent(
     name="competitor_agent",
     model=settings.gemini_model,
+        include_contents='none',
     instruction=_load_prompt("competitor_agent"),
     output_key=COMPETITOR_ANALYSIS,
     before_model_callback=content_safety_callback,
@@ -41,6 +42,7 @@ def build_competitor_agent() -> LlmAgent:
     return LlmAgent(
         name="competitor_agent",
         model=settings.gemini_model,
+        include_contents='none',
         instruction=_load_prompt("competitor_agent"),
         output_key=COMPETITOR_ANALYSIS,
         before_model_callback=content_safety_callback,

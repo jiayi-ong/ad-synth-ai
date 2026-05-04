@@ -77,14 +77,14 @@ Validates the assembled pipeline structure without running any LLM calls:
 | `test_trend_sub_pipeline_has_five_steps` | Sub-pipeline has exactly 5 sequential steps |
 | `test_data_collection_is_parallel` | Step 2 is a `ParallelAgent` |
 | `test_data_collection_has_seven_agents` | ParallelAgent has exactly 7 sub-agents |
-| `test_trend_critic_writes_trend_research` | `trend_critic_agent` has `output_key == TREND_RESEARCH` |
+| `test_trend_critic_writes_trend_research` | `trend_validator_agent` has `output_key == TREND_RESEARCH` |
 | `test_trend_keyword_writes_trend_keywords` | `trend_keyword_agent` has `output_key == TREND_KEYWORDS` |
 
 ### `test_state_keys.py` — State Contract Tests
 
 | Test | What It Verifies |
 |------|-----------------|
-| `test_agent_output_keys_count` | `AGENT_OUTPUT_KEYS` has exactly 11 entries |
+| `test_agent_output_keys_count` | `AGENT_OUTPUT_KEYS` has exactly 15 entries |
 | `test_state_keys_are_strings` | Key constants are strings, not None or ints |
 | `test_all_keys_unique` | No duplicate keys in `AGENT_OUTPUT_KEYS` |
 | `test_trend_sub_pipeline_keys_exist` | All 9 intermediate trend keys exist with correct string values |

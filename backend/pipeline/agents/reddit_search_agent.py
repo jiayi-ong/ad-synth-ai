@@ -16,6 +16,7 @@ def _load_prompt(name: str) -> str:
 reddit_search_agent = LlmAgent(
     name="reddit_search_agent",
     model=settings.gemini_model,
+        include_contents='none',
     instruction=_load_prompt("reddit_search_agent"),
     output_key=REDDIT_SEARCH_RESULTS,
     before_model_callback=content_safety_callback,
@@ -30,6 +31,7 @@ def build_reddit_search_agent() -> LlmAgent:
     return LlmAgent(
         name="reddit_search_agent",
         model=settings.gemini_model,
+        include_contents='none',
         instruction=_load_prompt("reddit_search_agent"),
         output_key=REDDIT_SEARCH_RESULTS,
         before_model_callback=content_safety_callback,

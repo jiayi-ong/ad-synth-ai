@@ -15,6 +15,7 @@ def _build() -> LlmAgent:
     return LlmAgent(
         name="campaign_architecture_agent",
         model=settings.gemini_model,
+        include_contents='none',
         instruction=_load_prompt("campaign_architecture_agent"),
         output_key=CAMPAIGN_ARCHITECTURE,
         before_model_callback=content_safety_callback,

@@ -16,6 +16,7 @@ def _load_prompt(name: str) -> str:
 trend_synthesis_agent = LlmAgent(
     name="trend_synthesis_agent",
     model=settings.gemini_model,
+        include_contents='none',
     instruction=_load_prompt("trend_synthesis_agent"),
     output_key=TREND_RESEARCH,
     before_model_callback=content_safety_callback,

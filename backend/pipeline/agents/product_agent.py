@@ -14,6 +14,7 @@ def _load_prompt(name: str) -> str:
 product_agent = LlmAgent(
     name="product_understanding_agent",
     model=settings.gemini_model,
+        include_contents='none',
     instruction=_load_prompt("product_agent"),
     output_key=PRODUCT_PROFILE,
     before_model_callback=content_safety_callback,

@@ -14,6 +14,7 @@ def _load_prompt(name: str) -> str:
 trend_query_agent = LlmAgent(
     name="trend_query_agent",
     model=settings.gemini_model,
+        include_contents='none',
     instruction=_load_prompt("trend_query_agent"),
     output_key=TREND_QUERIES,
     before_model_callback=content_safety_callback,
@@ -24,6 +25,7 @@ def build_trend_query_agent() -> LlmAgent:
     return LlmAgent(
         name="trend_query_agent",
         model=settings.gemini_model,
+        include_contents='none',
         instruction=_load_prompt("trend_query_agent"),
         output_key=TREND_QUERIES,
         before_model_callback=content_safety_callback,

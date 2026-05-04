@@ -255,6 +255,10 @@ async def generate_ad(
         # A loop agent (e.g. positioning_segmentation_loop) fires is_final_response() once per
         # iteration for each sub-agent; only the first completion of each state_key counts.
         completed_state_keys: set[str] = set()
+        # Charts captured from execute_python FunctionResponse events, keyed by agent name.
+        # Injected into the agent's parsed output after its final response, so agents never
+        # need to reproduce large base64 strings in their JSON text output.
+        _pending_charts: dict[str, list[str]] = {}
 
         try:
             runner = runner_module.get_runner()
@@ -280,6 +284,51 @@ async def generate_ad(
                     agent_start_times[event.author] = time.monotonic()
                     if event.author in _AGENT_KEY_MAP:
                         yield _sse("agent_start", {"agent": _AGENT_KEY_MAP[event.author]})
+
+                _evt_author = getattr(event, 'author', '?')
+                if _evt_author == 'experiment_design_agent' or logger.isEnabledFor(logging.DEBUG):
+                    _dbg_parts = []
+                    if event.content and event.content.parts:
+                        for _p in event.content.parts:
+                            if getattr(_p, 'text', None):
+                                _dbg_parts.append(f"text({len(_p.text)}ch)")
+                            elif getattr(_p, 'function_call', None):
+                                _dbg_parts.append(f"fn_call({_p.function_call.name})")
+                            elif getattr(_p, 'function_response', None):
+                                _dbg_parts.append(f"fn_resp({_p.function_response.name})")
+                            else:
+                                _dbg_parts.append("other")
+                    _finish = None
+                    for _attr in ('finish_reason', 'candidates'):
+                        _v = getattr(event, _attr, None)
+                        if _v is not None:
+                            _finish = f"{_attr}={_v!r:.80}"
+                            break
+                    logger.info(
+                        "adk_event ad=%s author=%s is_final=%s parts=%s delta_keys=%s finish=%s etype=%s",
+                        ad_id,
+                        _evt_author,
+                        event.is_final_response(),
+                        _dbg_parts,
+                        list((getattr(event.actions, 'state_delta', None) or {}).keys()) if event.actions else [],
+                        _finish,
+                        type(event).__name__,
+                    )
+
+                # Collect base64 charts from execute_python tool responses.
+                # Charts are stored in a module-level registry (keyed by UUID) so that
+                # the LLM never sees large base64 data. We drain by _charts_id here.
+                if event.author and event.content and event.content.parts:
+                    for _part in event.content.parts:
+                        _fn_resp = getattr(_part, 'function_response', None)
+                        if _fn_resp is not None and getattr(_fn_resp, 'name', None) == 'execute_python':
+                            _resp = getattr(_fn_resp, 'response', None) or {}
+                            if isinstance(_resp, dict):
+                                _charts_id = _resp.get('_charts_id')
+                                if _charts_id:
+                                    from tools.code_tools import drain_charts
+                                    for _c in drain_charts(_charts_id):
+                                        _pending_charts.setdefault(event.author, []).append(_c)
 
                 # Detect agent completion events
                 if event.is_final_response() and event.author in _AGENT_KEY_MAP:
@@ -351,6 +400,25 @@ async def generate_ad(
                         ad_id, agent_name, state_key, len(raw_output or ""), (raw_output or "")[:2000],
                     )
                     parsed = _parse_json_output(raw_output)
+
+                    # Inject base64 charts captured from execute_python tool calls.
+                    # Agents set image_base64: null in their JSON; we fill it here so
+                    # the model never has to reproduce large binary data as text.
+                    _agent_charts = _pending_charts.pop(agent_name, [])
+                    if _agent_charts and isinstance(parsed, dict):
+                        _existing = parsed.get('charts') or []
+                        if not isinstance(_existing, list):
+                            _existing = []
+                        for _i, _b64 in enumerate(_agent_charts):
+                            if _i < len(_existing) and isinstance(_existing[_i], dict):
+                                _existing[_i]['image_base64'] = _b64
+                            else:
+                                _existing.append({
+                                    'title': f'Chart {_i + 1}',
+                                    'description': 'Generated analysis chart',
+                                    'image_base64': _b64,
+                                })
+                        parsed['charts'] = _existing
 
                     # Build a lightweight summary for the pipeline log
                     output_summary: dict = {"parsed_keys": list(parsed.keys()) if isinstance(parsed, dict) else []}
@@ -476,6 +544,13 @@ async def generate_ad(
                 fallback = compute_pricing_fallback(product_profile_raw)
                 await advertisement_service.update_pipeline_state(ad, PRICING_ANALYSIS, fallback, db)
                 logger.info("pricing_fallback_applied ad=%s unit_cost=%s", ad_id, fallback.get("unit_cost_usd"))
+
+        # 6b. Experiment design fallback — if agent failed at high context, inject deterministic fallback.
+        if not pricing_state.get(EXPERIMENT_DESIGN):
+            from backend.pipeline.agents.experiment_design_agent import compute_experiment_design_fallback
+            exp_fallback = compute_experiment_design_fallback()
+            await advertisement_service.update_pipeline_state(ad, EXPERIMENT_DESIGN, exp_fallback, db)
+            logger.info("experiment_design_fallback_applied ad=%s", ad_id)
 
         # 6. Trigger image generation
         logger.info(
