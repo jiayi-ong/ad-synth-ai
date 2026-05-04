@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI
+from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from backend.core.config import settings
@@ -53,6 +54,11 @@ app.include_router(research.router)
 frontend_dir = Path(__file__).parent.parent / "frontend"
 if frontend_dir.exists():
     app.mount("/app", StaticFiles(directory=str(frontend_dir), html=True), name="frontend")
+
+
+@app.get("/")
+async def root():
+    return RedirectResponse(url="/app")
 
 
 @app.get("/health")
