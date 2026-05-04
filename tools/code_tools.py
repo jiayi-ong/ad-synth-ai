@@ -3,22 +3,34 @@ Python code execution tool for quantitative analysis agents.
 
 The agent writes standard Python (pandas/matplotlib/numpy) as a code string.
 This tool runs it in a subprocess, captures stdout, stderr, and any matplotlib
-figures (returned as base64-encoded PNG strings).
+figures. Charts are stored in a module-level registry keyed by a UUID so that
+large base64 data never reaches the LLM's context window. The generation backend
+drains charts by UUID via drain_charts().
 """
-import base64
 import json
 import logging
 import subprocess
 import sys
 import textwrap
 import tempfile
+import threading
+import uuid
 import os
 from typing import Any
 
 logger = logging.getLogger(__name__)
 
-# Injected at the top of every submitted script to configure matplotlib and
-# set up the chart-capture mechanism at script exit.
+# Registry: uuid → list[base64_png_str]. Thread-safe for concurrent requests.
+_chart_registry: dict[str, list[str]] = {}
+_chart_registry_lock = threading.Lock()
+
+
+def drain_charts(charts_id: str) -> list[str]:
+    """Remove and return charts for the given UUID. Returns [] if not found."""
+    with _chart_registry_lock:
+        return _chart_registry.pop(charts_id, [])
+
+
 _PREAMBLE = textwrap.dedent("""\
     import sys as _sys
     import io as _io
@@ -57,26 +69,21 @@ _CHART_MARKER = "__CHARTS__:"
 
 def execute_python(code: str, timeout: int = 60) -> dict[str, Any]:
     """
-    Execute Python code in a sandboxed subprocess and return the results.
-
-    The agent may use pandas, matplotlib, and numpy freely. Any matplotlib
-    figures left open at the end of the script are automatically captured and
-    returned as base64-encoded PNG strings.
+    Execute Python code in a sandboxed subprocess and return results.
+    Prints go to "stdout". Any matplotlib figures left open are captured
+    automatically — do NOT call plt.close() in your code. The response
+    includes "stdout", "stderr", "charts_count" (number of charts captured),
+    "_charts_id" (opaque ID used by the pipeline to retrieve chart images),
+    and "error" (null on success). Chart images are never returned directly
+    to avoid large base64 data in the model context.
 
     Args:
         code: Valid Python source code to execute.
         timeout: Maximum wall-clock seconds allowed (default 60).
-
-    Returns:
-        A dict with keys:
-          - "stdout": captured standard output (chart marker line removed)
-          - "stderr": captured standard error
-          - "charts": list of base64-encoded PNG strings (one per figure)
-          - "error": null on success, or an error message string on failure
     """
+    logger.info("execute_python called: code_len=%d timeout=%d", len(code), timeout)
     full_code = _PREAMBLE + code + _POSTAMBLE
 
-    # Write to a temp file so the subprocess can be launched cleanly
     with tempfile.NamedTemporaryFile(
         mode="w", suffix=".py", delete=False, encoding="utf-8"
     ) as tmp:
@@ -94,14 +101,16 @@ def execute_python(code: str, timeout: int = 60) -> dict[str, Any]:
         return {
             "stdout": "",
             "stderr": "",
-            "charts": [],
+            "charts_count": 0,
+            "_charts_id": None,
             "error": f"Execution timed out after {timeout} seconds.",
         }
     except Exception as exc:
         return {
             "stdout": "",
             "stderr": "",
-            "charts": [],
+            "charts_count": 0,
+            "_charts_id": None,
             "error": f"Failed to launch subprocess: {exc}",
         }
     finally:
@@ -127,9 +136,22 @@ def execute_python(code: str, timeout: int = 60) -> dict[str, Any]:
     if result.returncode != 0:
         error = result.stderr.strip() or f"Exited with code {result.returncode}"
 
+    # Store charts in registry so the pipeline can retrieve them without
+    # passing large base64 strings back to the LLM.
+    charts_id: str | None = None
+    if charts:
+        charts_id = str(uuid.uuid4())
+        with _chart_registry_lock:
+            _chart_registry[charts_id] = charts
+
+    logger.info(
+        "execute_python done: stdout_len=%d stderr_len=%d charts=%d error=%r",
+        len("\n".join(clean_lines)), len(result.stderr), len(charts), error,
+    )
     return {
         "stdout": "\n".join(clean_lines),
         "stderr": result.stderr,
-        "charts": charts,
+        "charts_count": len(charts),
+        "_charts_id": charts_id,
         "error": error,
     }

@@ -14,6 +14,7 @@ def _load_prompt(name: str) -> str:
 trend_aggregator_agent = LlmAgent(
     name="trend_aggregator_agent",
     model=settings.gemini_model,
+        include_contents='none',
     instruction=_load_prompt("trend_aggregator_agent"),
     output_key=AGGREGATED_TREND_DATA,
     before_model_callback=content_safety_callback,

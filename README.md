@@ -85,6 +85,7 @@ trend_validator_agent (quality validation → writes TREND_RESEARCH)
 - **RAG caches** — sqlite-vec stores for trend synthesis and multi-namespace knowledge store
 - **Graceful error handling** — non-critical agent failures are isolated; partial results saved and displayed
 - **Unit cost tracking** — Products carry `unit_cost_usd` used to anchor the pricing fallback model
+- **Deterministic agent fallbacks** — If `pricing_analysis_agent` or `experiment_design_agent` fail (e.g., due to high context at late pipeline stages), deterministic Python fallbacks produce valid output: cost-plus pricing at 2×/3×/5× multipliers and scipy-computed A/B experiment sample sizes with 3 concrete experiments
 
 ## Tech Stack
 

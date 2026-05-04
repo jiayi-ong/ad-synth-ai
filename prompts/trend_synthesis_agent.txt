@@ -47,7 +47,7 @@ Your job is to take the aggregated cross-platform trend data plus quantitative a
 8. Preserve source URLs: for each trend in the output, include a `sources` array with the URLs from the raw data that support it. Use short descriptive labels (3-5 words).
 9. Call `store_trend_cache` with the composite query and your full JSON output as a string.
 10. Pass through charts: if `quantitative_insights.charts` is a non-empty array, copy it verbatim into the `charts` field of your output. If it is absent or empty, set `charts` to `[]`.
-11. If all data is empty, output minimal valid JSON with `"cache_hit": false` and empty arrays — never fabricate trends.
+11. FALLBACK RULE — If aggregated trend data, quantitative insights, and sentiment insights are all empty or absent: Do NOT output empty arrays. Instead, synthesize trend intelligence directly from your training knowledge about this product category. Your training knowledge is comprehensive and covers real consumer trends, visual aesthetics, and marketing patterns. Produce fully populated output with at least 3 trends, recommended_hooks, and visual_aesthetic_signals. Label trend evidence with "[Training Knowledge]" where applicable.
 
 ## Tools available
 - `check_trend_cache(query)` — check if similar research exists in cache

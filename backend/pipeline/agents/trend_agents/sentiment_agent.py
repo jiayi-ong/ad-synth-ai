@@ -15,6 +15,7 @@ def _build() -> LlmAgent:
     return LlmAgent(
         name="sentiment_analysis_agent",
         model=settings.gemini_model,
+        include_contents='none',
         instruction=_load_prompt("sentiment_analysis_agent"),
         output_key=SENTIMENT_INSIGHTS,
         before_model_callback=content_safety_callback,

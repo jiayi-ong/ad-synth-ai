@@ -142,7 +142,7 @@ The `POST /generate` endpoint is the core of the application. It:
 5. Starts `Runner.run_async()` and iterates over events
 6. For each agent `is_final_response()` event — reads output from `event.actions.state_delta` (preferred for loop agents) then `event.content`, then `session_service.get_session()` as fallback
 7. Emits SSE `agent_complete` event; increments progress only on **first** completion of each state key (prevents loop iteration double-counting)
-8. On pipeline completion — runs pricing fallback if pricing_analysis is absent; then calls image provider
+8. On pipeline completion — runs pricing fallback if `pricing_analysis` is absent; runs experiment_design fallback if `experiment_design` is absent; then calls image provider
 9. Saves full `pipeline_state` to the Advertisement record
 
 **Agent → State Key mapping** (`_AGENT_KEY_MAP`):
@@ -169,6 +169,10 @@ The `POST /generate` endpoint is the core of the application. It:
 **Non-critical agents** (failures don't halt the pipeline): `trend_validator_agent`, `competitor_agent`, `pricing_analysis_agent`, `campaign_architecture_agent`, `experiment_design_agent`, `marketing_recommendation_agent`, `evaluation_agent`, `channel_adaptation_agent`, `brand_consistency_agent`.
 
 `_TOTAL_AGENTS = 16` (15 state-key-tracked agents + image generation).
+
+**Post-pipeline fallbacks**: After the pipeline completes and before image generation, `generation.py` injects deterministic fallback output for any critical agents that produced no output:
+- **Pricing fallback** — `compute_pricing_fallback()` from `pricing_analysis_agent.py`: cost-plus model at 2×/3×/5× multipliers anchored on `unit_cost_usd` from `PRODUCT_PROFILE`.
+- **Experiment design fallback** — `compute_experiment_design_fallback()` from `experiment_design_agent.py`: 3 concrete A/B experiments (hook copy, CTA text, audience targeting) with scipy-computed sample sizes at α=0.05, power=0.80.
 
 ## SSE Event Protocol
 

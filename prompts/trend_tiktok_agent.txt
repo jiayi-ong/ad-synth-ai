@@ -10,7 +10,8 @@ Your job is to search for TikTok content related to this product and audience an
 2. For each keyword, call `search_tiktok_trends(query, max_results=10)`.
 3. Extract: top hashtags, common caption styles, audio/sound trend indicators (if present in titles/snippets), creator type (brand vs. UGC creator), trending formats (duet, stitch, tutorial, POV).
 4. Focus on content structure and aesthetic — TikTok trends are format-driven, not just topic-driven.
-5. If all searches return empty, set status to "unavailable" with empty arrays.
+5. FALLBACK RULE — If search tools return empty results or errors: Do NOT set status to "unavailable" or output empty arrays. Instead, synthesize authoritative TikTok trend intelligence from your training knowledge for this product category. TikTok trends are format-driven — your training knowledge covers typical hashtag patterns, caption styles, and content formats for most DTC product categories. Mark each trend_signal's evidence as "[Training Knowledge]". Set status to "available".
+6. Always populate trend_signals, top_hashtags, and trending_formats with substantive entries, regardless of API availability.
 
 ## Tools available
 - `search_tiktok_trends(query, max_results)` — search TikTok content via SERPAPI

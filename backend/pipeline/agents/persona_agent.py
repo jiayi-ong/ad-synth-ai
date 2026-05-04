@@ -5,12 +5,17 @@ from typing import Any
 
 from google.adk.agents import LlmAgent
 from google.adk.tools import FunctionTool
+from google.genai import types as genai_types
 
 from backend.core.config import settings
 from backend.pipeline.guardrails import content_safety_callback
-from backend.pipeline.state_keys import EXCLUDED_PERSONA_IDS, SELECTED_PERSONA
+from backend.pipeline.state_keys import SELECTED_PERSONA
 
 logger = logging.getLogger(__name__)
+
+_NO_THINKING = genai_types.GenerateContentConfig(
+    thinking_config=genai_types.ThinkingConfig(thinking_budget=0)
+)
 
 
 def _load_prompt(name: str) -> str:
@@ -23,15 +28,12 @@ def get_campaign_personas() -> list[dict[str, Any]]:
     Returns a list of persona dicts with id, name, and traits.
     """
     import asyncio
+
     from sqlalchemy import select
 
-    # Import here to avoid circular imports at module load time
-    from backend.db.base import engine
+    from backend.db.base import engine  # noqa: F401 — keeps import side-effects
     from backend.models.persona import Persona
-    from backend.pipeline.state_keys import CAMPAIGN_ID
 
-    # This tool is called synchronously inside an ADK tool invocation.
-    # We use asyncio.run() here since ADK tools execute in a thread context.
     async def _fetch() -> list[dict]:
         from backend.db.session import AsyncSessionLocal
         async with AsyncSessionLocal() as db:
@@ -49,18 +51,23 @@ def get_campaign_personas() -> list[dict[str, Any]]:
     try:
         return asyncio.run(_fetch())
     except RuntimeError:
-        # If there's already an event loop running (e.g. in tests), use a new thread
         import concurrent.futures
         with concurrent.futures.ThreadPoolExecutor() as pool:
             future = pool.submit(asyncio.run, _fetch())
             return future.result()
 
 
-persona_agent = LlmAgent(
-    name="persona_agent",
-    model=settings.gemini_model,
-    instruction=_load_prompt("persona_agent"),
-    output_key=SELECTED_PERSONA,
-    before_model_callback=content_safety_callback,
-    tools=[FunctionTool(get_campaign_personas)],
-)
+def _build() -> LlmAgent:
+    return LlmAgent(
+        name="persona_agent",
+        model=settings.gemini_model,
+        include_contents='none',
+        instruction=_load_prompt("persona_agent"),
+        output_key=SELECTED_PERSONA,
+        generate_content_config=_NO_THINKING,
+        before_model_callback=content_safety_callback,
+        tools=[FunctionTool(get_campaign_personas)],
+    )
+
+
+persona_agent = _build()

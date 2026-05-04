@@ -14,6 +14,7 @@ def _load_prompt(name: str) -> str:
 trend_keyword_agent = LlmAgent(
     name="trend_keyword_agent",
     model=settings.gemini_model,
+        include_contents='none',
     instruction=_load_prompt("trend_keyword_agent"),
     output_key=TREND_KEYWORDS,
     before_model_callback=content_safety_callback,

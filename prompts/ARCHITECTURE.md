@@ -46,7 +46,7 @@ ADK scans the **entire** prompt text (including code blocks) with `r'{+[^{}]*}+'
 | `creative_agent.txt` | Creative Strategy | `product_profile`, `audience_analysis`, `trend_research?`, `competitor_analysis?`, `market_segmentation?`, `pricing_analysis?`, `extra_input` | `creative_directions` |
 | `persona_agent.txt` | Persona Selection | `audience_analysis`, `creative_directions`, `extra_input` | `selected_persona` |
 | `prompt_agent.txt` | Prompt Engineering | `raw_product_description`, `product_profile`, `audience_analysis`, `creative_directions`, `selected_persona?`, `extra_input` | `image_gen_prompt`, `ab_variant_prompt` |
-| `campaign_architecture_agent.txt` | Campaign Architecture | `product_profile`, `audience_analysis`, `market_segmentation`, `pricing_analysis`, `creative_directions`, `selected_persona` | `campaign_architecture` |
+| `campaign_architecture_agent.txt` | Campaign Architecture | `product_profile`, `audience_analysis`, `market_segmentation`, `pricing_analysis`, `creative_directions`, `selected_persona?` | `campaign_architecture` |
 | `experiment_design_agent.txt` | Experiment Design | `campaign_architecture`, `audience_analysis`, `market_segmentation` | `experiment_design` |
 | `marketing_agent.txt` | Marketing Recommendations | `product_profile`, `audience_analysis`, `creative_directions`, `extra_input` | `marketing_output` |
 | `evaluation_agent.txt` | Ad Evaluation | `product_profile`, `audience_analysis`, `creative_directions`, `extra_input` | `evaluation_output` |

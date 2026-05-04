@@ -16,6 +16,7 @@ def _build() -> LlmAgent:
     return LlmAgent(
         name="loop_evaluator_agent",
         model=settings.gemini_model,
+        include_contents='none',
         instruction=_load_prompt("loop_evaluator_agent"),
         output_key=LOOP_EVAL_SIGNAL,
         before_model_callback=content_safety_callback,

@@ -1,6 +1,6 @@
 """
 RAG-based trend cache using sqlite-vec for vector similarity search.
-Embeddings are generated using Gemini text-embedding-004 (768 dimensions).
+Embeddings are generated using Gemini gemini-embedding-001 (3072 dimensions).
 """
 import json
 import logging
@@ -11,7 +11,7 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 _CACHE_DB = Path("data/trend_cache.db")
-_DIM = 768
+_DIM = 3072
 _SIMILARITY_THRESHOLD = 0.85
 
 
@@ -40,14 +40,16 @@ def _embed(text: str) -> list[float] | None:
     try:
         from google import genai
         from backend.core.config import settings
-        client = genai.Client(
-            api_key=settings.google_api_key if not settings.google_genai_use_vertexai else None,
-            vertexai=settings.google_genai_use_vertexai,
-            project=settings.gcp_project_id or None,
-            location=settings.gcp_region,
-        )
+        if settings.google_genai_use_vertexai:
+            client = genai.Client(
+                vertexai=True,
+                project=settings.gcp_project_id,
+                location=settings.gcp_region,
+            )
+        else:
+            client = genai.Client(api_key=settings.google_api_key)
         resp = client.models.embed_content(
-            model="text-embedding-004",
+            model="gemini-embedding-001",
             contents=[text],
         )
         return resp.embeddings[0].values
@@ -56,27 +58,31 @@ def _embed(text: str) -> list[float] | None:
         return None
 
 
-def check_trend_cache(query: str, similarity_threshold: float = _SIMILARITY_THRESHOLD) -> str | None:
+_CACHE_MISS_SENTINEL = "NO_CACHED_RESULT"
+
+
+def check_trend_cache(query: str, similarity_threshold: float = _SIMILARITY_THRESHOLD) -> str:
     """
     Check if a similar trend query result exists in the cache.
-    Returns the cached result string if found above the similarity threshold, else None.
+    Returns the cached result string if found above the similarity threshold,
+    or 'NO_CACHED_RESULT' if not found (never returns None, to avoid
+    confusing the LLM with a null function response).
     """
     try:
         vec = _embed(query)
         if not vec:
-            return None
+            return _CACHE_MISS_SENTINEL
         conn = _get_conn()
-        # sqlite-vec returns distance (lower = more similar); convert to cosine similarity
         rows = conn.execute(
-            f"SELECT rowid, distance FROM trend_cache WHERE embedding MATCH ? AND k = 5",
+            "SELECT rowid, distance FROM trend_cache WHERE embedding MATCH ? AND k = 5",
             [json.dumps(vec)],
         ).fetchall()
         if not rows:
-            return None
+            return _CACHE_MISS_SENTINEL
         best_rowid, best_dist = min(rows, key=lambda r: r[1])
         similarity = 1.0 - best_dist
         if similarity < similarity_threshold:
-            return None
+            return _CACHE_MISS_SENTINEL
         data = conn.execute(
             "SELECT result FROM trend_cache_data WHERE rowid = ?", [best_rowid]
         ).fetchone()
@@ -85,7 +91,7 @@ def check_trend_cache(query: str, similarity_threshold: float = _SIMILARITY_THRE
             return data[0]
     except Exception as e:
         logger.warning("check_trend_cache error: %s", e)
-    return None
+    return _CACHE_MISS_SENTINEL
 
 
 def store_trend_cache(query: str, result: str) -> None:

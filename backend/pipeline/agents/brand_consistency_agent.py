@@ -14,6 +14,7 @@ def _load_prompt(name: str) -> str:
 brand_consistency_agent = LlmAgent(
     name="brand_consistency_agent",
     model=settings.gemini_model,
+        include_contents='none',
     instruction=_load_prompt("brand_consistency_agent"),
     output_key=BRAND_CONSISTENCY,
     before_model_callback=content_safety_callback,

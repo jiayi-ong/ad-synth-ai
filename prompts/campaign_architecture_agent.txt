@@ -26,7 +26,7 @@ Your job is to design a coherent, phased campaign structure that maps segments, 
 {creative_directions}
 
 ## Selected Persona
-{selected_persona}
+{selected_persona?}
 
 ## Your Responsibilities
 1. Define a clear campaign objective (awareness, consideration, conversion, or retention — pick one primary).

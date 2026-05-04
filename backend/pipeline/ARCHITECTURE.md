@@ -139,6 +139,8 @@ The state key file is the formal contract between all agents.
 | `PRICING_ANALYSIS` | `""` | Non-critical agent; referenced by campaign_architecture before it runs |
 | `CAMPAIGN_ARCHITECTURE` | `""` | Non-critical agent; referenced by experiment_design before it runs |
 
+Note: `SELECTED_PERSONA` does **not** need pre-seeding — `campaign_architecture_agent.txt` uses `{selected_persona?}` (optional injection). If persona_agent fails, the key is absent and ADK injects an empty string rather than raising a KeyError.
+
 **Main output keys** (written by agents, drive UI progress):
 
 | Key | Written By |
@@ -178,8 +180,13 @@ Each agent file follows the same pattern:
 from pathlib import Path
 from google.adk.agents import LlmAgent
 from google.adk.tools import FunctionTool
+from google.genai import types as genai_types
 from backend.pipeline.guardrails import content_safety_callback
 from backend.pipeline.state_keys import MY_OUTPUT_KEY
+
+_NO_THINKING = genai_types.GenerateContentConfig(
+    thinking_config=genai_types.ThinkingConfig(thinking_budget=0)
+)
 
 def _load_prompt(name: str) -> str:
     return (Path(__file__).parents[3] / "prompts" / f"{name}.txt").read_text(encoding="utf-8")
@@ -188,8 +195,10 @@ def _build() -> LlmAgent:
     return LlmAgent(
         name="my_agent",
         model=settings.gemini_model,
+        include_contents='none',          # see Context Management note below
         instruction=_load_prompt("my_agent"),
         output_key=MY_OUTPUT_KEY,
+        generate_content_config=_NO_THINKING,
         tools=[FunctionTool(my_tool)],
         before_model_callback=content_safety_callback,
     )
@@ -202,6 +211,14 @@ def build_my_agent() -> LlmAgent:
 ```
 
 Agents that participate in a `LoopAgent` expose a `build_*` factory. The singleton instance (`my_agent`) is used for the sequential stages.
+
+### Context Management: `_NO_THINKING` and `include_contents='none'`
+
+All agents use `_NO_THINKING` (`thinking_budget=0`) to suppress extended thinking tokens. At high input context sizes (~44k+ tokens), thinking tokens can cause `MALFORMED_FUNCTION_CALL` errors even for agents with tools — `thinking_budget=0` prevents this.
+
+Most mid/late-pipeline agents set `include_contents='none'`. **Important limitation**: inside a `SequentialAgent`, `include_contents='none'` does not significantly reduce context because ADK's `_get_current_turn_contents` always finds the previous agent's final response and includes all events from that point forward. The practical effect is minimal for sequential stages beyond the first few.
+
+**`include_contents='none'` must NOT be set on agents inside a `LoopAgent`** (e.g., `market_segmentation_agent`). Within a LoopAgent with multi-tool AFC, this combination causes 0 output even at small context sizes. LoopAgent-hosted agents should use the default `include_contents` value (`'default'`).
 
 ## ADK Template Injection Rules
 
@@ -283,16 +300,23 @@ The following agents are in `_NON_CRITICAL_AGENTS` — their failures don't stop
 - `channel_adaptation_agent`
 - `brand_consistency_agent`
 
-## Pricing Fallback
+## Post-Pipeline Fallbacks
 
-After the pipeline completes, if `PRICING_ANALYSIS` is absent or empty (pricing_analysis_agent was skipped or failed), `generation.py` runs a Python cost-plus fallback (`compute_pricing_fallback`). It reads `unit_cost_usd` from `PRODUCT_PROFILE` and computes margin scenarios at 2×, 3×, and 5× cost multipliers. The result is written back to `ad.pipeline_state[PRICING_ANALYSIS]` so downstream UI and DB queries always have a pricing anchor.
+After the pipeline completes, `generation.py` runs two deterministic fallbacks before triggering image generation:
+
+**Pricing fallback** (`compute_pricing_fallback` in `pricing_analysis_agent.py`): If `PRICING_ANALYSIS` is absent or empty, reads `unit_cost_usd` from `PRODUCT_PROFILE` and computes margin scenarios at 2×, 3×, and 5× cost multipliers. Written back to `ad.pipeline_state[PRICING_ANALYSIS]` so the UI always has a pricing anchor. Sets `_fallback: True` on the result.
+
+**Experiment design fallback** (`compute_experiment_design_fallback` in `experiment_design_agent.py`): If `EXPERIMENT_DESIGN` is absent or empty, generates 3 concrete A/B experiments (hook copy, CTA text, audience targeting) using scipy to compute real two-proportion z-test sample sizes at α=0.05, power=0.80. Falls back to hardcoded sample sizes if scipy is unavailable. Sets `_fallback: True` on the result.
+
+Both fallbacks fire only when the corresponding agent produced no output (state key empty). If the agent succeeded, its output is preserved.
 
 ## Adding a New Agent
 
-1. Create `backend/pipeline/agents/my_new_agent.py` with `_build()` + singleton + factory
-2. Add a prompt file at `prompts/my_new_agent.txt` — never use `{var}` syntax in code examples
+1. Create `backend/pipeline/agents/my_new_agent.py` with `_build()` + singleton + factory; include `_NO_THINKING` in `generate_content_config`; use `include_contents='none'` unless the agent runs inside a LoopAgent
+2. Add a prompt file at `prompts/my_new_agent.txt` — never use `{var}` syntax in code examples; use `{key?}` for any optional inputs
 3. Declare any new state keys in `state_keys.py`; add to `AGENT_OUTPUT_KEYS` and `DOWNSTREAM_KEYS`
 4. Add to `orchestrator.py` in the correct pipeline position
 5. Map `"my_new_agent"` → `MY_OUTPUT_KEY` in `generation.py`'s `_AGENT_KEY_MAP`
 6. Add to `_NON_CRITICAL_AGENTS` if failures should be non-fatal
-7. Pre-seed the output key in `initial_state` if downstream agents reference it as a template variable and it might not be set when they run
+7. Pre-seed the output key in `initial_state` if downstream agents reference it as a required template variable (`{key}` not `{key?}`) and it might not be set when they run
+8. If the agent can fail at high context and produces critical output, add a deterministic fallback function to the agent file and wire it in `generation.py` after the pipeline completes (see `compute_pricing_fallback` and `compute_experiment_design_fallback` for the pattern)

@@ -28,6 +28,7 @@ def _build_tools() -> list:
 web_search_agent = LlmAgent(
     name="web_search_agent",
     model=settings.gemini_model,
+        include_contents='none',
     instruction=_load_prompt("web_search_agent"),
     output_key=WEB_SEARCH_RESULTS,
     before_model_callback=content_safety_callback,
@@ -39,6 +40,7 @@ def build_web_search_agent() -> LlmAgent:
     return LlmAgent(
         name="web_search_agent",
         model=settings.gemini_model,
+        include_contents='none',
         instruction=_load_prompt("web_search_agent"),
         output_key=WEB_SEARCH_RESULTS,
         before_model_callback=content_safety_callback,

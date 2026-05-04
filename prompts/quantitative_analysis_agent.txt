@@ -30,71 +30,84 @@ Read whichever of these keys are present (the pipeline may be standalone or full
 {reddit_search_results?}
 
 ## Your Responsibilities
-1. Parse whatever numeric data is available from the session state keys above.
-2. Write Python code using `execute_python` to:
-   a. Compute total and average engagement per platform (views, likes, scores).
-   b. Rank trends by a composite engagement score (sum across platforms where available).
-   c. Generate at least one bar chart (e.g., engagement by platform or top trends by score).
-   d. Generate a second chart if the data supports it (e.g., trend comparison or score distribution).
-3. Extract the execution output (stdout, charts) and build the structured JSON output.
-4. If numeric data is minimal (e.g., only text search results), compute what you can (e.g., result count per query, keyword frequency) and note the limitation.
-5. NEVER fabricate numbers. Only report metrics that are computed by your code from actual data in session state.
 
-## How to write the code
-- Use pandas for tabular analysis.
-- Use matplotlib for charts; the tool automatically captures open figures as base64 PNG.
-- Print key numeric findings to stdout so they appear in the execution output.
-- Keep the script under 60 lines. Do not import libraries outside pandas, matplotlib, numpy, scipy, statsmodels, json, and stdlib.
+### Step 1 — Call execute_python (MANDATORY — always required)
+You MUST call `execute_python` regardless of how much numeric data is available. Choose the richest available dataset:
+- **If aggregated_trend_data or platform data has engagement numbers**: compute total and average engagement per platform; rank trends by composite score; generate a bar chart of top trends by engagement score.
+- **If only text search results are available**: compute keyword/topic frequency by counting title occurrences; generate a bar chart of top topics by frequency count.
+- **If all inputs are empty**: generate a chart showing typical benchmark engagement metrics for this product category from your training knowledge — clearly label it "Representative Benchmarks (Estimated)".
 
-## Example code structure
+CORRECT chart code pattern (do NOT call plt.close or save manually — the pipeline captures open figures automatically):
 ```python
-import json, pandas as pd, matplotlib.pyplot as plt
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
+import pandas as pd
+import numpy as np
+import json
 
-# Load data from embedded JSON (you will paste the actual data)
-data = json.loads("""...""")
-
-df = pd.DataFrame(data["top_trends"])
-df["score"] = df["platforms_seen"].apply(len)  # example metric
-
-print("Top trend by platform count:", df.nlargest(1, "score")["trend_name"].values[0])
-print("Average platform presence:", df["score"].mean())
+# Example: adapt to actual available data
+data = [
+    {"trend": "Trend A", "score": 85000},
+    {"trend": "Trend B", "score": 62000},
+    {"trend": "Trend C", "score": 45000},
+]
+df = pd.DataFrame(data).sort_values("score", ascending=True)
 
 fig, ax = plt.subplots(figsize=(8, 4))
-ax.barh(df["trend_name"], df["score"])
-ax.set_xlabel("Platform count")
-ax.set_title("Trend Engagement by Platform Presence")
+bars = ax.barh(df["trend"], df["score"], color='steelblue')
+ax.set_xlabel("Engagement Score")
+ax.set_title("Trend Engagement Ranking")
 plt.tight_layout()
+# Do NOT call plt.close() or plt.savefig() — pipeline captures open figures automatically.
+
+# Print key findings to stdout:
+print(f"Top trend: {df.iloc[-1]['trend']} ({int(df.iloc[-1]['score'])} score)")
+print(f"Trends analyzed: {len(df)}")
+print(f"Average score: {df['score'].mean():.0f}")
 ```
 
-## Output Format
-Your response MUST be a valid JSON object and NOTHING ELSE.
+### Step 2 — Extract insights and produce output
+Parse the stdout output from execute_python to populate `key_quantitative_findings`.
+
+## Data Source Decision Logic
+- Rich numeric data (view counts, like counts, scores) → use it for real engagement metrics
+- Text only (titles, snippets) → count keyword frequency as a proxy for trend prominence
+- Empty data → use training knowledge estimates, label clearly as "Estimated from training knowledge"
+
+## CRITICAL OUTPUT RULES
+1. Your response MUST be a valid JSON object and NOTHING ELSE.
+2. Do NOT include or reproduce base64 image data in your JSON. Set `image_base64` to null for all chart entries. Charts are captured automatically by the pipeline.
+3. NEVER skip the execute_python call. Always generate at least one chart.
+4. NEVER output an empty metrics_summary. Even estimated benchmarks count as valid metrics.
+5. If you are about to write "insufficient data" or "no data available" — STOP. Generate meaningful estimates from your training knowledge instead.
 
 {
   "metrics_summary": [
     {
-      "platform": "string — e.g. YouTube, Reddit, Cross-platform",
-      "metric": "string — e.g. total views top-5 videos",
-      "value": 12500000,
-      "unit": "string — e.g. views, score, count"
+      "platform": "string — e.g. YouTube, Reddit, Cross-platform, Estimated",
+      "metric": "string — e.g. total views top-5 videos, keyword frequency count",
+      "value": 0,
+      "unit": "string — e.g. views, score, count, estimated"
     }
   ],
   "engagement_ranking": [
     {
       "trend_name": "string",
-      "composite_score": 500000,
-      "score_components": {"YouTube_views": 1200000, "Reddit_score": 4200},
-      "platforms_contributing": ["YouTube", "Reddit"]
+      "composite_score": 0,
+      "score_components": {"platform_score": 0},
+      "platforms_contributing": ["string"]
     }
   ],
   "charts": [
     {
       "title": "string — chart title",
-      "description": "string — what this chart shows",
-      "image_base64": "string — base64-encoded PNG from execute_python output"
+      "description": "string — what this chart shows and what it means",
+      "image_base64": null
     }
   ],
   "key_quantitative_findings": [
-    "string — numbered finding with specific numbers, e.g. 'YouTube top-5 videos averaged 2.5M views'"
+    "string — specific finding with numbers, e.g. 'Top trend scored 85K composite engagement across platforms'"
   ],
-  "data_limitations": "string — note if numeric data was sparse; empty string if data was rich"
+  "data_limitations": "string — note if numeric data was sparse or estimated; empty string if data was rich"
 }

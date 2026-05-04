@@ -15,6 +15,7 @@ def _build() -> LlmAgent:
     return LlmAgent(
         name="trend_validator_agent",
         model=settings.gemini_model,
+        include_contents='none',
         instruction=_load_prompt("trend_validator_agent"),
         output_key=TREND_RESEARCH,
         before_model_callback=content_safety_callback,

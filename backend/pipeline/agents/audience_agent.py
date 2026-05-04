@@ -15,6 +15,7 @@ def _build() -> LlmAgent:
     return LlmAgent(
         name="audience_positioning_agent",
         model=settings.gemini_model,
+        include_contents='none',
         instruction=_load_prompt("audience_agent"),
         output_key=AUDIENCE_ANALYSIS,
         before_model_callback=content_safety_callback,

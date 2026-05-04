@@ -13,9 +13,19 @@ from google.genai import types
 logger = logging.getLogger(__name__)
 
 _BLOCKLIST = re.compile(
-    r"\b(kill|murder|rape|pornograph|nude|naked|racist|slur|hate speech|"
-    r"bomb|terrorist|suicide|self.harm)\b",
+    r"\b(murder|rape|pornograph|racist|slur|hate speech|terrorist|suicide|self.harm)\b",
     re.IGNORECASE,
+)
+
+# Only scan user-supplied inputs, not accumulated agent outputs.
+# Scanning llm_request.contents causes cascade false positives: once an upstream
+# agent writes marketing copy containing a blocklisted word ("killer pricing",
+# "Naked Nutrition"), every downstream agent's assembled prompt triggers the block.
+_USER_INPUT_KEYS = (
+    "raw_product_description",
+    "raw_marketing_brief",
+    "extra_input",
+    "brand_profile_context",
 )
 
 
@@ -24,16 +34,18 @@ def content_safety_callback(
     llm_request: LlmRequest,
 ) -> LlmResponse | None:
     """
-    Inspect the assembled prompt before it reaches the LLM.
-    If blocked content is detected, return a structured error response instead.
+    Inspect user-supplied inputs before any LLM call.
+    Returns a structured error response if blocked content is detected, else None.
     """
-    prompt_text = ""
-    for content in llm_request.contents or []:
-        for part in content.parts or []:
-            if hasattr(part, "text") and part.text:
-                prompt_text += part.text + " "
+    state = callback_context.state or {}
+    text_to_scan = ""
+    for key in _USER_INPUT_KEYS:
+        val = state.get(key) or ""
+        if isinstance(val, dict):
+            val = json.dumps(val)
+        text_to_scan += val + " "
 
-    if _BLOCKLIST.search(prompt_text):
+    if _BLOCKLIST.search(text_to_scan):
         logger.warning("Content safety block triggered for agent: %s", callback_context.agent_name)
         blocked_response = types.GenerateContentResponse(
             candidates=[
