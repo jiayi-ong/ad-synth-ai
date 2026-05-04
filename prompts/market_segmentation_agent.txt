@@ -58,10 +58,8 @@ print("Segments analyzed:", len(segments))
 
 Replace the example data with your actual segment names and scores. Leave the figure open.
 
-### Step 4 — Store result and produce output
-Call `store_knowledge_store(namespace="market_research")` to persist your analysis for future campaigns.
-
-Then immediately produce your complete JSON output. Do not wait for any additional input.
+### Step 4 — Produce output
+Produce your complete JSON output immediately. Do not make any further tool calls.
 
 ## Data Provenance Protocol
 For each substantive claim, classify it:
