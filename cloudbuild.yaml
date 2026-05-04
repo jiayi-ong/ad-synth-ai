@@ -21,6 +21,7 @@ steps:
       - "--region=us-central1"
       - "--platform=managed"
       - "--allow-unauthenticated"
+      - "--ingress=all"
       - "--memory=2Gi"
       - "--cpu=2"
       - "--timeout=600"
@@ -28,12 +29,13 @@ steps:
       # to prevent memory exhaustion under burst traffic.
       - "--concurrency=10"
       - "--max-instances=5"
+      - "--cpu-boost"
       - "--service-account=ad-synth-ai-runner@$PROJECT_ID.iam.gserviceaccount.com"
       # Cloud SQL instance for persistent PostgreSQL storage.
       # ADK sessions use ephemeral SQLite — fine since sessions are per-request.
       - "--add-cloudsql-instances=$PROJECT_ID:us-central1:ad-synth-ai-db"
       - >-
-        --set-env-vars=GOOGLE_GENAI_USE_VERTEXAI=TRUE,IMAGE_GEN_PROVIDER=vertexai,GCP_REGION=us-central1,GEMINI_MODEL=gemini-2.0-flash,LOG_TO_FILE=false,LOG_FORMAT=json,LOG_LEVEL=INFO,STORAGE_BACKEND=local,ADK_DATABASE_URL=sqlite+aiosqlite:///./data/adk_sessions.db
+        --set-env-vars=GOOGLE_GENAI_USE_VERTEXAI=TRUE,IMAGE_GEN_PROVIDER=shortapi,SHORTAPI_MODEL=google/nano-banana-pro/text-to-image,GCP_REGION=us-central1,GEMINI_MODEL=gemini-2.5-flash,LOG_TO_FILE=false,LOG_FORMAT=json,LOG_LEVEL=INFO,STORAGE_BACKEND=local,ADK_DATABASE_URL=sqlite+aiosqlite:///./data/adk_sessions.db
       # All secrets must exist in Secret Manager before first deployment.
       # DATABASE_URL contains the Cloud SQL connection string with credentials.
       # Optional trend-research secrets can be created with placeholder values.
