@@ -1,8 +1,10 @@
 # GCP Deployment Guide
 
-This guide covers every GCP resource that must be provisioned before deploying ad-synth-ai to Cloud Run, and explains how to run the first deployment and set up ongoing CI/CD.
+This guide covers every GCP resource that must be provisioned before deploying ad-synth-ai to Cloud Run.
 
-For local development, see [LOCAL_DEV_SETUP.md](LOCAL_DEV_SETUP.md).
+**Local development is unaffected** — it continues to use SQLite via the `DATABASE_URL` in your `.env` file. Only the deployed instance uses Cloud SQL.
+
+For local development setup, see [LOCAL_DEV_SETUP.md](LOCAL_DEV_SETUP.md).
 
 ---
 
@@ -11,13 +13,13 @@ For local development, see [LOCAL_DEV_SETUP.md](LOCAL_DEV_SETUP.md).
 1. [Prerequisites](#1-prerequisites)
 2. [Enable Required APIs](#2-enable-required-apis)
 3. [Create a Service Account and IAM Roles](#3-create-a-service-account-and-iam-roles)
-4. [Create Secret Manager Secrets](#4-create-secret-manager-secrets)
-5. [First Deployment (Manual)](#5-first-deployment-manual)
-6. [CI/CD via Cloud Build Trigger](#6-cicd-via-cloud-build-trigger)
-7. [Verify the Deployment](#7-verify-the-deployment)
-8. [Environment Variable Reference](#8-environment-variable-reference)
-9. [Scaling and Cost Notes](#9-scaling-and-cost-notes)
-10. [Production Upgrade: Cloud SQL](#10-production-upgrade-cloud-sql)
+4. [Create Cloud SQL Instance](#4-create-cloud-sql-instance)
+5. [Create Secret Manager Secrets](#5-create-secret-manager-secrets)
+6. [First Deployment (Manual)](#6-first-deployment-manual)
+7. [CI/CD via Cloud Build Trigger](#7-cicd-via-cloud-build-trigger)
+8. [Verify the Deployment](#8-verify-the-deployment)
+9. [Environment Variable Reference](#9-environment-variable-reference)
+10. [Scaling and Cost Notes](#10-scaling-and-cost-notes)
 11. [Troubleshooting](#11-troubleshooting)
 
 ---
@@ -31,7 +33,7 @@ For local development, see [LOCAL_DEV_SETUP.md](LOCAL_DEV_SETUP.md).
   ```
 - **Docker Desktop** installed (for local image builds and testing before Cloud Build)
 - A **GCP project** created — note its Project ID (e.g. `my-project-123`)
-- **Billing enabled** on the project (Cloud Run, Cloud Build, Vertex AI all require billing)
+- **Billing enabled** on the project (Cloud Run, Cloud Build, Vertex AI, Cloud SQL all require billing)
 
 Set your default project to avoid repeating `--project` on every command:
 ```bash
@@ -51,18 +53,19 @@ gcloud services enable \
   containerregistry.googleapis.com \
   secretmanager.googleapis.com \
   aiplatform.googleapis.com \
+  sqladmin.googleapis.com \
   storage.googleapis.com
 ```
 
-This enables:
 | API | Used for |
 |-----|----------|
 | `run.googleapis.com` | Cloud Run deployment |
 | `cloudbuild.googleapis.com` | CI/CD builds |
 | `containerregistry.googleapis.com` | Storing Docker images (`gcr.io`) |
-| `secretmanager.googleapis.com` | Secure storage of API keys |
+| `secretmanager.googleapis.com` | Secure storage of API keys and DB credentials |
 | `aiplatform.googleapis.com` | Vertex AI Imagen (image generation) and Gemini |
-| `storage.googleapis.com` | GCS bucket for uploaded files (optional for POC) |
+| `sqladmin.googleapis.com` | Cloud SQL (persistent PostgreSQL database) |
+| `storage.googleapis.com` | GCS bucket for uploaded files (optional) |
 
 ---
 
@@ -92,17 +95,18 @@ gcloud projects add-iam-policy-binding YOUR_PROJECT_ID \
   --member="serviceAccount:$SA" \
   --role="roles/secretmanager.secretAccessor"
 
-# Write generated images to GCS (only if STORAGE_BACKEND=gcs)
+# Connect to Cloud SQL via the Cloud SQL Auth Proxy
+gcloud projects add-iam-policy-binding YOUR_PROJECT_ID \
+  --member="serviceAccount:$SA" \
+  --role="roles/cloudsql.client"
+
+# Write uploaded files to GCS (only if STORAGE_BACKEND=gcs)
 gcloud projects add-iam-policy-binding YOUR_PROJECT_ID \
   --member="serviceAccount:$SA" \
   --role="roles/storage.objectCreator"
 ```
 
 ### 3c. Grant the Cloud Build SA permission to deploy
-
-Cloud Build runs as the Cloud Build service account. It needs to:
-- Deploy Cloud Run services
-- Pass the runner SA identity to Cloud Run
 
 ```bash
 PROJECT_NUMBER=$(gcloud projects describe YOUR_PROJECT_ID --format='value(projectNumber)')
@@ -113,7 +117,7 @@ gcloud projects add-iam-policy-binding YOUR_PROJECT_ID \
   --member="serviceAccount:$CB_SA" \
   --role="roles/run.admin"
 
-# Pass the runner SA to Cloud Run (--service-account flag in cloudbuild.yaml)
+# Pass the runner SA identity to Cloud Run (required for --service-account flag)
 gcloud iam service-accounts add-iam-policy-binding \
   ad-synth-ai-runner@YOUR_PROJECT_ID.iam.gserviceaccount.com \
   --member="serviceAccount:$CB_SA" \
@@ -122,81 +126,108 @@ gcloud iam service-accounts add-iam-policy-binding \
 
 ---
 
-## 4. Create Secret Manager Secrets
+## 4. Create Cloud SQL Instance
 
-All secrets referenced in `cloudbuild.yaml` under `--set-secrets` must exist before the first deployment. Optional secrets (trend research APIs) can be created with placeholder values and updated later.
+Cloud SQL provides a persistent PostgreSQL database that survives redeployments. Data you create on the deployed instance (accounts, brand profiles, campaigns, ads) is preserved across every future deploy.
 
-### 4a. Required secrets (must have real values)
+> **Local dev is unchanged** — your `.env` still points to SQLite and local testing works as before.
+
+### 4a. Create the instance
 
 ```bash
-# JWT signing key — generate a strong random string
+gcloud sql instances create ad-synth-ai-db \
+  --database-version=POSTGRES_15 \
+  --tier=db-f1-micro \
+  --region=us-central1
+```
+
+`db-f1-micro` (1 shared vCPU, 614 MB RAM) is the smallest tier — sufficient for a POC. Startup takes 2–3 minutes.
+
+### 4b. Create the database and user
+
+```bash
+gcloud sql databases create adsynthai --instance=ad-synth-ai-db
+
+# Choose a strong password and note it — you'll use it in Section 5
+gcloud sql users create adsynthai \
+  --instance=ad-synth-ai-db \
+  --password=YOUR_STRONG_DB_PASSWORD
+```
+
+Cloud Run connects to Cloud SQL via a Unix socket (`/cloudsql/...`) injected by the Cloud SQL Auth Proxy — no public IP or firewall rules needed.
+
+---
+
+## 5. Create Secret Manager Secrets
+
+All secrets referenced in `cloudbuild.yaml` under `--set-secrets` must exist before the first deployment. Optional secrets (trend research APIs) can be created with placeholder values.
+
+### 5a. Required secrets
+
+```bash
+# JWT signing key
 JWT_VALUE=$(python3 -c "import secrets; print(secrets.token_hex(32))")
 printf '%s' "$JWT_VALUE" | gcloud secrets create jwt-secret --data-file=-
 
 # GCP Project ID (used internally by Vertex AI SDK)
 printf '%s' "YOUR_PROJECT_ID" | gcloud secrets create gcp-project-id --data-file=-
+
+# Cloud SQL connection string — replace YOUR_PROJECT_ID and YOUR_STRONG_DB_PASSWORD
+printf '%s' "postgresql+asyncpg://adsynthai:YOUR_STRONG_DB_PASSWORD@/adsynthai?host=/cloudsql/YOUR_PROJECT_ID:us-central1:ad-synth-ai-db" \
+  | gcloud secrets create database-url --data-file=-
 ```
 
-### 4b. Optional trend research secrets
+### 5b. Optional trend research secrets
 
-Create these with placeholder values if you don't have the keys yet. The app falls back gracefully when they are empty.
+Create with placeholder values if you don't have the keys yet — the app falls back gracefully when they are empty.
 
 ```bash
-# Google Custom Search (CSE) — both key and CX ID needed together
-printf '%s' "YOUR_KEY_OR_PLACEHOLDER" | gcloud secrets create google-cse-key --data-file=-
-printf '%s' "YOUR_CX_OR_PLACEHOLDER" | gcloud secrets create google-cse-id --data-file=-
-
-# YouTube Data API v3 (Google Cloud Console → APIs & Services → YouTube Data API)
-printf '%s' "YOUR_KEY_OR_PLACEHOLDER" | gcloud secrets create youtube-api-key --data-file=-
-
-# Reddit API (create an app at https://www.reddit.com/prefs/apps)
-printf '%s' "YOUR_CLIENT_ID_OR_PLACEHOLDER" | gcloud secrets create reddit-client-id --data-file=-
-printf '%s' "YOUR_CLIENT_SECRET_OR_PLACEHOLDER" | gcloud secrets create reddit-client-secret --data-file=-
-
-# X/Twitter API v2 Bearer Token
-printf '%s' "YOUR_TOKEN_OR_PLACEHOLDER" | gcloud secrets create twitter-bearer-token --data-file=-
-
-# SerpAPI (covers Instagram, TikTok, Pinterest, web search fallback)
-printf '%s' "YOUR_KEY_OR_PLACEHOLDER" | gcloud secrets create serpapi-key --data-file=-
-
-# ShortAPI (only needed if IMAGE_GEN_PROVIDER=shortapi)
-printf '%s' "YOUR_KEY_OR_PLACEHOLDER" | gcloud secrets create shortapi-key --data-file=-
+printf '%s' "placeholder" | gcloud secrets create google-cse-key --data-file=-
+printf '%s' "placeholder" | gcloud secrets create google-cse-id --data-file=-
+printf '%s' "placeholder" | gcloud secrets create youtube-api-key --data-file=-
+printf '%s' "placeholder" | gcloud secrets create reddit-client-id --data-file=-
+printf '%s' "placeholder" | gcloud secrets create reddit-client-secret --data-file=-
+printf '%s' "placeholder" | gcloud secrets create twitter-bearer-token --data-file=-
+printf '%s' "placeholder" | gcloud secrets create serpapi-key --data-file=-
+printf '%s' "placeholder" | gcloud secrets create shortapi-key --data-file=-
 ```
 
 To update a secret later with the real value:
 ```bash
-printf '%s' "REAL_API_KEY_VALUE" | gcloud secrets versions add SECRET_NAME --data-file=-
+printf '%s' "REAL_VALUE" | gcloud secrets versions add SECRET_NAME --data-file=-
 ```
 
 ---
 
-## 5. First Deployment (Manual)
+## 6. First Deployment (Manual)
 
-With APIs enabled, IAM configured, and all secrets created, you can run the first build from your local machine:
+With APIs enabled, IAM configured, Cloud SQL created, and all secrets in place:
 
 ```bash
-# From the repo root
+# From the repo root — first update the lock file to include asyncpg
+uv add asyncpg
+
+# Submit the build
 gcloud builds submit --config cloudbuild.yaml .
 ```
 
-What this does:
-1. Uploads the local source tree to Cloud Build (`.gcloudignore` trims unnecessary files)
-2. Builds the Docker image in two stages (uv dependency install → slim final image)
-3. Pushes the image to Container Registry as both `$COMMIT_SHA` and `latest`
-4. Deploys the image to Cloud Run in `us-central1`
+What happens:
+1. Local source tree (trimmed by `.gcloudignore`) is uploaded to Cloud Build
+2. Docker image is built in two stages (uv dependency install → slim runtime)
+3. Image is pushed to Container Registry tagged with commit SHA and `latest`
+4. Cloud Run is deployed with Cloud SQL attached — SQLAlchemy creates all tables on first startup
 
-First build takes **3–6 minutes** (downloading uv + resolving Python dependencies). Subsequent builds are faster due to Docker layer caching.
+First build takes **4–7 minutes**. Subsequent builds are faster due to Docker layer caching.
 
-> **Note on `uv.lock`**: `uv.lock` is currently excluded from `.gitignore`. For `gcloud builds submit .` (local upload) this is fine — the file is sent from your local filesystem. For CI/CD triggers that clone from git (Section 6), you must commit `uv.lock` to the repository so the builder can find it. Remove the `uv.lock` line from `.gitignore` before setting up triggers.
+> **Note on `uv.lock`**: `uv.lock` is currently in `.gitignore`. For `gcloud builds submit .` (local upload) this works fine. For CI/CD triggers that clone from git (Section 7), the lock file must be committed — see Section 7 for instructions.
 
 ---
 
-## 6. CI/CD via Cloud Build Trigger
+## 7. CI/CD via Cloud Build Trigger
 
 After a successful manual deployment, set up automatic deploys on push to `main`:
 
 ```bash
-# Connect your GitHub repo (follow the interactive OAuth flow in the console if prompted)
 gcloud builds triggers create github \
   --repo-name=ad-synth-ai \
   --repo-owner=YOUR_GITHUB_ORG_OR_USERNAME \
@@ -205,13 +236,10 @@ gcloud builds triggers create github \
   --name="deploy-on-push-to-main"
 ```
 
-From this point, every `git push origin main` triggers a full build and deploy automatically.
-
-**Before enabling the trigger**: commit `uv.lock` to the repository:
+**Before enabling the trigger**, commit `uv.lock` so Cloud Build can find it when cloning:
 ```bash
-# In your local repo
-git rm --cached uv.lock          # remove from gitignore tracking
-# Edit .gitignore and remove the "uv.lock" line
+# Remove uv.lock from .gitignore (delete the "uv.lock" line)
+git rm --cached uv.lock
 git add uv.lock .gitignore
 git commit -m "chore: commit uv.lock for Cloud Build CI"
 git push origin main
@@ -219,20 +247,19 @@ git push origin main
 
 ---
 
-## 7. Verify the Deployment
+## 8. Verify the Deployment
 
 ```bash
-# Get the Cloud Run service URL
 SERVICE_URL=$(gcloud run services describe ad-synth-ai \
   --region=us-central1 \
   --format='value(status.url)')
 
 echo "Service URL: $SERVICE_URL"
 
-# Health check (should return {"status":"ok","version":"0.1.0"})
+# Health check — should return {"status":"ok","version":"0.1.0"}
 curl "$SERVICE_URL/health"
 
-# Open the UI in a browser
+# Open the UI
 open "$SERVICE_URL/app"       # macOS
 start "$SERVICE_URL/app"      # Windows
 ```
@@ -240,32 +267,28 @@ start "$SERVICE_URL/app"      # Windows
 ### Viewing logs
 
 ```bash
-# Stream live logs
 gcloud run services logs tail ad-synth-ai --region=us-central1
-
-# Or in the Cloud Logging console:
-# Filter: resource.type="cloud_run_revision" AND resource.labels.service_name="ad-synth-ai"
 ```
 
-Logs are structured JSON (Cloud Logging parses them automatically). Each pipeline run emits per-agent latency and token-cost events.
+Or in Cloud Logging console, filter: `resource.type="cloud_run_revision" AND resource.labels.service_name="ad-synth-ai"`
+
+Logs are structured JSON. Each pipeline run emits per-agent latency and token-cost events.
 
 ---
 
-## 8. Environment Variable Reference
-
-All values set in `cloudbuild.yaml`. Non-secret values are in `--set-env-vars`; secrets are injected from Secret Manager via `--set-secrets`.
+## 9. Environment Variable Reference
 
 | Variable | Source | Cloud Run Value | Notes |
 |----------|--------|-----------------|-------|
 | `GOOGLE_GENAI_USE_VERTEXAI` | env var | `TRUE` | Uses Vertex AI instead of AI Studio |
 | `GCP_PROJECT_ID` | Secret Manager | `gcp-project-id:latest` | Used by Vertex AI SDK |
-| `GCP_REGION` | env var | `us-central1` | Match the Cloud Run region |
+| `GCP_REGION` | env var | `us-central1` | Matches Cloud Run region |
 | `GEMINI_MODEL` | env var | `gemini-2.0-flash` | Main LLM for all agents |
 | `IMAGE_GEN_PROVIDER` | env var | `vertexai` | Vertex AI Imagen 3.0 |
 | `JWT_SECRET_KEY` | Secret Manager | `jwt-secret:latest` | Signs auth tokens |
-| `DATABASE_URL` | env var | `sqlite+aiosqlite:///./data/ad_synth.db` | POC: ephemeral SQLite |
-| `ADK_DATABASE_URL` | env var | `sqlite+aiosqlite:///./data/adk_sessions.db` | ADK session store |
-| `STORAGE_BACKEND` | env var | `local` | `gcs` for persistent uploads |
+| `DATABASE_URL` | Secret Manager | `database-url:latest` | PostgreSQL via Cloud SQL Unix socket |
+| `ADK_DATABASE_URL` | env var | `sqlite+aiosqlite:///./data/adk_sessions.db` | ADK session store; ephemeral is fine |
+| `STORAGE_BACKEND` | env var | `local` | Change to `gcs` for persistent image uploads |
 | `LOG_TO_FILE` | env var | `false` | stdout → Cloud Logging |
 | `LOG_FORMAT` | env var | `json` | Structured logs for Cloud Logging |
 | `LOG_LEVEL` | env var | `INFO` | |
@@ -278,80 +301,36 @@ All values set in `cloudbuild.yaml`. Non-secret values are in `--set-env-vars`; 
 | `SERPAPI_API_KEY` | Secret Manager | `serpapi-key:latest` | Trend research |
 | `SHORTAPI_API_KEY` | Secret Manager | `shortapi-key:latest` | Only for `IMAGE_GEN_PROVIDER=shortapi` |
 
+**Local dev**: `DATABASE_URL` in `.env` stays as `sqlite+aiosqlite:///./data/ad_synth.db` — no change needed.
+
 ---
 
-## 9. Scaling and Cost Notes
+## 10. Scaling and Cost Notes
 
-### Why these Cloud Run settings
+### Cloud Run settings
 
 | Setting | Value | Reason |
 |---------|-------|--------|
-| `--concurrency=10` | 10 requests/instance | SSE connections stay open for the full pipeline run (~2–3 min). Default concurrency of 80 would exhaust 2 GiB RAM well before that limit. |
-| `--max-instances=5` | 5 | Caps simultaneous capacity. For a demo with a small audience this is generous; reduces surprise bills. |
-| `--cpu=2` | 2 vCPU | The async pipeline runs multiple agent stages in parallel (trend research + competitor analysis). Two CPUs improve throughput on the asyncio event loop. |
-| `--timeout=600` | 10 min | Full pipeline including retries can take ~3–4 min. 600 s provides headroom. |
+| `--concurrency=10` | 10 req/instance | SSE connections stay open ~2–3 min per pipeline run. Default of 80 would exhaust 2 GiB RAM. |
+| `--max-instances=5` | 5 | Caps capacity for a small-audience demo; limits surprise billing. |
+| `--cpu=2` | 2 vCPU | Parallel pipeline stages (trend research + competitor analysis) benefit from 2 CPUs on the asyncio event loop. |
+| `--timeout=600` | 10 min | Full pipeline including retries can take ~3–4 min. 600 s gives headroom. |
 
 ### Approximate cost per pipeline run (us-central1)
 
-| Cost item | Estimate |
-|-----------|----------|
-| Cloud Run CPU/memory (120 s × 2 vCPU × 2 GiB) | ~$0.005 |
+| Item | Estimate |
+|------|----------|
+| Cloud Run CPU/memory (~120 s × 2 vCPU × 2 GiB) | ~$0.005 |
 | Vertex AI Gemini Flash (all 16 agents) | ~$0.005–$0.02 |
 | Vertex AI Imagen 3.0 (1 image) | ~$0.04 |
-| **Total per run** | **~$0.05–$0.07** |
+| Cloud SQL db-f1-micro (always on) | ~$7–10/month |
+| **Per-run total** | **~$0.05–$0.07** |
 
-Cloud Run bills nothing when idle (no requests in flight).
-
----
-
-## 10. Production Upgrade: Cloud SQL
-
-The default `DATABASE_URL` uses SQLite on the container's ephemeral filesystem. Data (users, campaigns, brand profiles) is **lost on every new deployment**. For a persistent production database, switch to Cloud SQL PostgreSQL.
-
-### Create a Cloud SQL instance
-
+Cloud Run bills nothing when idle. Cloud SQL bills continuously (even when idle) — stop the instance when not needed to save cost:
 ```bash
-gcloud sql instances create ad-synth-ai-db \
-  --database-version=POSTGRES_15 \
-  --tier=db-f1-micro \
-  --region=us-central1
-
-gcloud sql databases create adsynthai --instance=ad-synth-ai-db
-
-gcloud sql users create adsynthai \
-  --instance=ad-synth-ai-db \
-  --password=YOUR_STRONG_DB_PASSWORD
+gcloud sql instances patch ad-synth-ai-db --activation-policy=NEVER   # stop
+gcloud sql instances patch ad-synth-ai-db --activation-policy=ALWAYS  # start
 ```
-
-### Grant Cloud SQL access to the runner SA
-
-```bash
-gcloud projects add-iam-policy-binding YOUR_PROJECT_ID \
-  --member="serviceAccount:ad-synth-ai-runner@YOUR_PROJECT_ID.iam.gserviceaccount.com" \
-  --role="roles/cloudsql.client"
-```
-
-### Update `cloudbuild.yaml` for Cloud SQL
-
-1. Add the `--add-cloudsql-instances` flag to the `gcloud run deploy` step:
-   ```yaml
-   - "--add-cloudsql-instances=YOUR_PROJECT_ID:us-central1:ad-synth-ai-db"
-   ```
-
-2. Change the `DATABASE_URL` in `--set-env-vars` to use the Unix socket:
-   ```
-   DATABASE_URL=postgresql+asyncpg://adsynthai:PASSWORD@/adsynthai?host=/cloudsql/YOUR_PROJECT_ID:us-central1:ad-synth-ai-db
-   ```
-   Store the password as a Secret Manager secret and interpolate it, or embed it in the connection string (less secure).
-
-3. Do the same for `ADK_DATABASE_URL` (same instance, different database name if desired).
-
-4. Add `asyncpg` to the project dependencies:
-   ```bash
-   uv add asyncpg
-   ```
-
-No changes to `backend/db/base.py` are needed — the SQLAlchemy engine creation already handles both SQLite and PostgreSQL URLs correctly.
 
 ---
 
@@ -359,31 +338,31 @@ No changes to `backend/db/base.py` are needed — the SQLAlchemy engine creation
 
 ### `PERMISSION_DENIED` when calling Vertex AI
 
-The Cloud Run service account lacks `roles/aiplatform.user`. Re-run Section 3b.
+The runner SA lacks `roles/aiplatform.user`. Re-run Section 3b.
 
 ### `Secret not found` during deployment
 
-Run the Secret Manager create commands in Section 4 before re-submitting the build. Every secret name in `--set-secrets` must exist.
+Every secret in `--set-secrets` must exist in Secret Manager before the build. Re-run Section 5.
+
+### `database-url` secret causes connection error on startup
+
+Check that the Cloud SQL instance name in the URL exactly matches `YOUR_PROJECT_ID:us-central1:ad-synth-ai-db`. The runner SA must have `roles/cloudsql.client` (Section 3b) and the `--add-cloudsql-instances` flag must be present in `cloudbuild.yaml`.
 
 ### `uv.lock not found` during Cloud Build
 
-Either the lock file is missing from the git repo (see the note in Section 5) or it was accidentally added to `.dockerignore`. Ensure `uv.lock` is committed and not excluded.
+The lock file is missing from the git repo. See Section 7 for instructions on committing it.
 
 ### Health check fails immediately after deploy
 
-The container's lifespan creates database tables on startup. If startup takes longer than Cloud Run's probe timeout, increase the startup probe. Check logs:
+Check startup logs — Cloud SQL table creation runs on first boot and takes a few seconds. If the probe timeout is too tight:
 ```bash
 gcloud run services logs tail ad-synth-ai --region=us-central1
 ```
 
 ### SSE stream cuts off mid-pipeline
 
-Cloud Run terminates requests that exceed the `--timeout` value. The pipeline can run up to ~4 min under load; 600 s gives ample headroom. If you still see cutoffs, confirm the client is not applying its own timeout (browser EventSource has no built-in timeout, but proxies might).
-
-### Image upload returns 500
-
-If `STORAGE_BACKEND=gcs` is set, the GCS bucket must exist and the runner SA must have `roles/storage.objectCreator`. The current default is `STORAGE_BACKEND=local`, which stores uploads in the container's ephemeral `/app/data/uploads/` directory.
+Cloud Run terminates requests at the `--timeout` value. The pipeline runs ~3–4 min; 600 s gives ample headroom. If cutoffs still occur, check whether a proxy (load balancer, corporate firewall) is imposing a shorter timeout.
 
 ### `cloudbuild.yaml` step fails with `--service-account not found`
 
-The service account `ad-synth-ai-runner@YOUR_PROJECT_ID.iam.gserviceaccount.com` must be created before the first Cloud Build run. Re-run Section 3a if it doesn't exist.
+The SA `ad-synth-ai-runner@YOUR_PROJECT_ID.iam.gserviceaccount.com` must be created before the Cloud Build run. Re-run Section 3a.
