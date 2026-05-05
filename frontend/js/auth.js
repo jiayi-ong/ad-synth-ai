@@ -5,7 +5,7 @@ export function renderAuth(mode = "login") {
   return `
     <div class="auth-wrap">
       <div class="auth-box">
-        <div class="auth-title">Ad-Synth AI</div>
+        <div class="auth-title">Marketrix<br>Autonomous Marketing Engine</div>
         <div class="auth-subtitle">${isLogin ? "Sign in to your account" : "Create a new account"}</div>
         <form id="auth-form">
           <div class="form-group">

@@ -69,6 +69,11 @@ class Settings(BaseSettings):
     log_dir: str = "logs"
     log_to_file: bool = True
 
+    # ── Chatbot Assistant ─────────────────────────────────────────────────────
+    chatbot_max_turns: int = 20
+    chatbot_knowledge_threshold: float = 0.82
+    chatbot_embed_on_startup: bool = True
+
 
 @lru_cache
 def get_settings() -> Settings:

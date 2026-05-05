@@ -8,7 +8,8 @@ The frontend is a vanilla HTML/CSS/ES6 single-page application with no build ste
 frontend/
 ├── index.html          # Single HTML entry point — all pages rendered inside <div id="app">
 ├── css/
-│   └── styles.css      # All styling — dark theme, responsive, component classes
+│   ├── styles.css      # All styling — responsive, component classes
+│   └── chatbot.css     # Chatbot widget styles (reuses CSS variables from styles.css)
 └── js/
     ├── app.js          # Hash router, expert mode toggle, auth token check on load
     ├── api.js          # HTTP client wrapper (fetch + JWT auth headers, all endpoint methods)
@@ -20,7 +21,8 @@ frontend/
     ├── stage_renderers.js  # Structured HTML renderers for each agent's JSON output
     ├── brands.js       # Brand Brain — brand profile list and editor
     ├── research.js     # Research Hub — cached trend data display
-    └── library.js      # Ad Library — past advertisement results
+    ├── library.js      # Ad Library — past advertisement results
+    └── chatbot.js      # AI Assistant chatbox widget (injected outside #app, persists across routes)
 ```
 
 ## Routing
@@ -168,6 +170,18 @@ POST /auth/login → { token }
 
 Logout → localStorage.removeItem('token') → redirect to #login
 ```
+
+## Chatbot Widget (`chatbot.js`)
+
+The chatbot assistant is a persistent floating widget injected directly into `document.body` (not into `#app`). This means it survives all hash route changes and is always accessible when logged in.
+
+Key design points:
+- **DOM injection**: `DOMContentLoaded` → `injectWidget()` appends `<div id="chatbot-widget">` to `document.body`
+- **Visibility**: Hidden on `#login` and `#register` pages; shown on all authenticated routes
+- **Session ID**: Persisted in `localStorage['chatbot_session_id']`, initialized on first panel open via `POST /chat/session`
+- **Advertisement context**: On each message send, `window.location.hash` is parsed with `/#generate\/[^/]+\/([a-f0-9-]{36})/` to detect if the user is viewing a specific ad generation result. If so, `advertisement_id` is sent with the message and the backend injects pipeline context into the system prompt.
+- **SSE streaming**: Uses `fetch` + `ReadableStream` (same pattern as `generate.js`), appending tokens to the assistant bubble in real time
+- **Guardrail responses**: Delivered as normal SSE token streams — no special frontend handling needed
 
 ## Adding a New Page
 

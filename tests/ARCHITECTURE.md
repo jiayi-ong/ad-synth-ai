@@ -8,6 +8,10 @@ The test suite uses `pytest` with `pytest-asyncio` for async test support. Tests
 tests/
 ├── conftest.py                         # Shared fixtures: app client, auth headers, DB records
 ├── unit/
+│   ├── test_chatbot/
+│   │   ├── test_guardrails.py          # Keyword-based guardrail detection (22 cases)
+│   │   ├── test_knowledge_base.py      # KB load, similarity ranking, threshold filtering
+│   │   └── test_chatbot_service.py     # Truncation, prompt assembly, context extraction
 │   ├── test_services/
 │   │   ├── test_auth_service.py        # JWT registration, login, wrong password, protected routes
 │   │   ├── test_campaign_service.py    # Campaign CRUD, ownership enforcement
@@ -19,6 +23,8 @@ tests/
 │       ├── test_youtube_tools.py       # YouTube API graceful degradation + result normalization
 │       ├── test_twitter_tools.py       # Twitter API + SERPAPI fallback on rate limit
 │       └── test_serpapi_tools.py       # SERPAPI platform-specific result normalization
+├── module/
+│   └── test_chatbot_router.py          # Session CRUD, SSE streaming, guardrail via HTTP (mocked Gemini)
 └── integration/
     └── test_api_generation.py          # Full generation endpoint with mocked ADK Runner
 ```

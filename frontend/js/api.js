@@ -123,4 +123,10 @@ export const api = {
 
   // Evaluate
   evaluate: (data) => request("POST", "/evaluate", data),
+
+  // Chatbot
+  createChatSession: () => request("POST", "/chat/session"),
+  clearChatSession: () => request("DELETE", "/chat/session"),
+  // Note: sendChatMessage SSE streaming is handled directly in chatbot.js
+  // using fetch + ReadableStream (same pattern as generate.js).
 };
