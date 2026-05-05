@@ -2,6 +2,15 @@
 
 An AI-powered Creative Operating System for performance marketing. Turns a product description and marketing brief into structured ad concepts, production-ready image-generation prompts, and a full campaign intelligence suite — using a 16-agent multi-agent pipeline with real-time streaming.
 
+## Deployment
+
+**Live URL**: https://ad-synth-ai-js7bkb4kuq-uc.a.run.app
+
+Sign in with these credentials to view pre-generated data:
+**EMAIL**: marketing@xyz.com, **PASSWORD**: aomaoe
+
+Alternatively, create a new account using a fake email to start from a fresh state.
+
 ## Overview
 
 Ad-Synth AI acts as a campaign intelligence and iteration engine. A hierarchical agent pipeline — built on Google ADK and Vertex AI — runs market segmentation and audience positioning in a feedback loop, researches trends across 7 platforms simultaneously, models pricing with Python-executed financial analysis, designs statistically-grounded A/B experiments, and generates a complete marketing suite. A persistent "Brand Brain" stores company and brand context across campaigns.
