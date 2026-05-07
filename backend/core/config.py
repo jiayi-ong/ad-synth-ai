@@ -25,6 +25,11 @@ class Settings(BaseSettings):
     gcp_project_id: str = ""
     gcp_region: str = "us-central1"
     gemini_model: str = "gemini-2.0-flash"
+    # Thinking budget for tool-using agents. 0 prevents MALFORMED_FUNCTION_CALL on 2.0-flash
+    # but causes blank output on 2.5-flash (which needs some thinking to produce text after
+    # tool calls). A small non-zero value works on both: 2.0-flash ignores ThinkingConfig,
+    # 2.5-flash uses the budget and produces proper output. Set to 0 only if reverting to 2.0-flash.
+    agent_thinking_budget: int = 1024
 
     # ── Image generation ─────────────────────────────────────────────────────
     image_gen_provider: Literal["vertexai", "gemini", "shortapi", "mock"] = "mock"

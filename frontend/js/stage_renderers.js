@@ -497,9 +497,9 @@ function renderReadinessScore(rs) {
     <div style="margin-top:12px;padding:10px;background:var(--surface2);border:1px solid var(--border);border-radius:6px">
       <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.4px;color:var(--text-muted);margin-bottom:8px">Readiness</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
-        ${rs.completeness != null ? `<div style="font-size:12px"><span style="color:var(--text-muted)">Completeness</span> <strong>${Math.round(rs.completeness * 100)}%</strong></div>` : ""}
-        ${rs.source_grounding != null ? `<div style="font-size:12px"><span style="color:var(--text-muted)">Grounding</span> <strong>${Math.round(rs.source_grounding * 100)}%</strong></div>` : ""}
-        ${rs.confidence != null ? `<div style="font-size:12px"><span style="color:var(--text-muted)">Confidence</span> <strong>${Math.round(rs.confidence * 100)}%</strong></div>` : ""}
+        ${rs.completeness != null ? `<div style="font-size:12px"><span style="color:var(--text-muted)">Completeness</span> <strong>${Math.min(100, Math.round(rs.completeness * 100))}%</strong></div>` : ""}
+        ${rs.source_grounding != null ? `<div style="font-size:12px"><span style="color:var(--text-muted)">Grounding</span> <strong>${Math.min(100, Math.round(rs.source_grounding * 100))}%</strong></div>` : ""}
+        ${rs.confidence != null ? `<div style="font-size:12px"><span style="color:var(--text-muted)">Confidence</span> <strong>${Math.min(100, Math.round(rs.confidence * 100))}%</strong></div>` : ""}
         ${rs.risk_level ? `<div style="font-size:12px"><span style="color:var(--text-muted)">Risk</span> <strong style="color:${rs.risk_level === "low" ? "var(--success)" : rs.risk_level === "high" ? "var(--warning)" : "var(--text)"}">${esc(rs.risk_level)}</strong></div>` : ""}
       </div>
     </div>
